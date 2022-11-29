@@ -63,7 +63,7 @@ using namespace std;
 #define MULTI_COMM		"MULTILINE COMMENT"
 #define COMM_DIV		"TBD DIV OR COMM"
 
-#define THROW_TOKEN		throw std::invalid_argument("INVALID TOKEN!!!!")
+#define THROW_TOKEN		do { cout << "ERROR" << endl; throw std::invalid_argument("INVALID TOKEN!!!!"); } while(0)
 
 #define END_TOKEN_BUILD	Token("END", "END")
 #define END				"END"
@@ -340,7 +340,7 @@ struct Engine {
 	void compile() { compile_class(); }
 
 	void indent() { prepend += '\t'; }
-	void undent() { prepend += '\t'; }
+	void undent() { if (prepend.size() > 0) prepend = prepend.substr(1); }
 	void advance() { token = tokenizer.tokenize(); }
 
 	void set_ifile(ofstream &fout) { this->fout = &fout; }
@@ -358,6 +358,8 @@ struct Engine {
 		if (token.token != KW_CLASS) THROW_TOKEN;
 		tna();
 		if (token.type != TYPE_ID) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_CBF) THROW_TOKEN;
 		t();
 
 		//series like this: class class_id { cvars subrs }
@@ -379,7 +381,7 @@ struct Engine {
 	void compile_cvar_dec() {
 		to(C_VAR_DEC);
 
-		//series like this: static_or_field data_type var_id; 
+		//series like this: static_or_field data_type var_id ... , var_id, var_id; 
 
 		if (token.token != KW_STATIC && token.token != KW_FIELD) THROW_TOKEN;
 		tna();
@@ -387,6 +389,13 @@ struct Engine {
 		tna();
 		if (token.type != TYPE_ID) THROW_TOKEN;
 		tna();
+
+		while (token.token == SYM_COM) {
+			tna();
+			if (token.type != TYPE_ID) THROW_TOKEN;
+			tna();
+		}
+
 		if (token.token != SYM_SMC) THROW_TOKEN;
 		t();
 
@@ -398,7 +407,7 @@ struct Engine {
 
 		if (token.token != KW_FUNCTION && token.token != KW_METHOD && token.token != KW_CONSTRUCTOR) THROW_TOKEN;
 		tna();
-		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN;
+		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT && token.type != TYPE_ID) THROW_TOKEN;
 		tna();
 		if (token.type != TYPE_ID) THROW_TOKEN;
 		tna();

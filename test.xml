@@ -1,3 +1,22 @@
 <class>
 	<keyword>class</keyword>
 	<identifier>Square</identifier>
+	<symbol>{</symbol>
+	<class_variable_declaration>
+		<keyword>field</keyword>
+		<keyword>int</keyword>
+		<identifier>x</identifier>
+		<symbol>,</symbol>
+		<identifier>y</identifier>
+		<symbol>;</symbol>
+		</class_variable_declaration>
+	<class_variable_declaration>
+		<keyword>field</keyword>
+		<keyword>int</keyword>
+		<identifier>size</identifier>
+		<symbol>;</symbol>
+		</class_variable_declaration>
+	<subroutine_declaration>
+		<keyword>constructor</keyword>
+		<identifier>Square</identifier>
+		<identifier>new</identifier>
