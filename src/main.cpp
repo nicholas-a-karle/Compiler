@@ -48,6 +48,10 @@ using namespace std;
 #define SYM_EQ			"="
 #define SYM_TIL			"~"
 
+#define SYM_ALT_LT		"&lt"
+#define SYM_ALT_GT		"&gt"
+#define SYM_ALT_AND		"&and"
+
 #define TYPE_SC			"string_constant"
 #define TYPE_IC			"integer_constant"
 #define TYPE_ID			"identifier"
@@ -222,6 +226,9 @@ struct Tokenizer {
 			return Token(token, type);
         } else if (type == TYPE_SYM) {
             //pass whole token
+			if (token == SYM_GT) return Token(SYM_ALT_GT, type);
+			if (token == SYM_LT) return Token(SYM_ALT_LT, type);
+			if (token == SYM_AND) return Token(SYM_ALT_AND, type);
 			return Token(token, type);
         } else if (type == TYPE_ID) {
             //pass whole token
@@ -234,10 +241,28 @@ struct Tokenizer {
 
 };
 
-#define CLASS_O		"<class>"
-#define CLASS_C		"</class>"
+#define O1			"<"
+#define O2			"</"
+#define C0			">"
+#define CLASS		"class"
+#define SUBR_DEC	"subroutine_declaration"
+#define SUBR_BODY	"subroutine_body"
+#define PAR_LIST	"parameter_list"
+#define STATEMENTS	"statements"
 
+#define WHILE_STAT	"while_statement"
+#define IF_STAT		"if_statement"
+#define ELSE_STAT	"else_statement"
 
+#define LET_STAT	"let_statement"
+#define DO_STAT		"do_statement"
+#define RET_STAT	"return_statement"
+#define VAR_DEC		"variable_declaration"
+#define C_VAR_DEC	"class_variable_declaration"
+
+#define EXPRESSION	"expression"
+#define EXP_LIST	"expression_list"
+#define TERM		"term"
 
 struct Engine {
 
@@ -253,20 +278,56 @@ struct Engine {
 
 	void indent() { prepend += '\t'; }
 	void undent() { prepend += '\t'; }
+	void advance() { token = tokenizer.tokenize(); }
 
 	void set_ifile(ofstream &fout) { this->fout = &fout; }
 	void set_ofile(ifstream &fin) { tokenizer = Tokenizer(fin); }
+
+	void begin_compilation() {
+		compile_next();
+	}
+
+	void compile_next() {
+		advance();
+		if (token.type == TYPE_KW) {
+			//determine next based off keyword
+
+
+
+		} else if (token.type == TYPE_SYM) {
+			//two special types of symbols: } and ;
+			// } ends if, else, and while statements, and also the class or subroutine
+			// ; ends do, let, return, and both types of variable declarations
+			//for both, simply escape the recursion and do not call compile_next();
+			cout << prepend << O1 << token.type << C0 << token.token << O2 << token.type << C0 << end;
+			//handling }
+			//handling ;
+			if (token.token == SYM_SMC || token.token == SYM_CBB) return;
+
+		} else if (token.type == TYPE_ID) {
+			cout << prepend << O1 << token.type << C0 << token.token << O2 << token.type << C0 << end;
+
+		} else if (token.type == TYPE_IC) {
+			cout << prepend << O1 << token.type << C0 << token.token << O2 << token.type << C0 << end;
+
+		} else if (token.type == TYPE_SC) {
+			cout << prepend << O1 << token.type << C0 << token.token << O2 << token.type << C0 << end;
+
+		}
+
+		compile_next();
+	}
 	
 	void compile_class() {
-		fout << prepend << CLASS_O << endl;
+		fout << prepend << O1 << CLASS << C0 << endl;
 		indent();
-		
+		compile_next();
 		undent();
-		fout << prepend << CLASS_C << endl;
+		fout << prepend << O2 << CLASS << C0 << endl;
 	}
 
 	void compile_class_var() {
-
+		
 	}
 
 	void compile_subr() {
