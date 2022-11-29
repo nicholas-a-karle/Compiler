@@ -58,7 +58,15 @@ using namespace std;
 #define INVALID_TYPE	"INVALID_TYPE"
 
 #define COM_SYM         "//"
+#define M_COM_SYM		"/*"
 #define COMMENT         "COMMENT"
+#define MULTI_COMM		"MULTILINE COMMENT"
+#define COMM_DIV		"TBD DIV OR COMM"
+
+#define THROW_TOKEN		throw std::invalid_argument("INVALID TOKEN!!!!")
+
+#define END_TOKEN_BUILD	Token("END", "END")
+#define END				"END"
 
 // check if letter
 bool is_letter(char c) {
@@ -98,6 +106,7 @@ bool is_keyword(string token) {
 
 // given a token, returns whether or not the token is a symbol
 bool is_symbol(string token) {
+	if (token.size() != 1) return false;
 	if (token == SYM_OR) return true;
 	if (token == SYM_AND) return true;
 	if (token == SYM_EQ) return true;
@@ -109,14 +118,37 @@ bool is_symbol(string token) {
 	if (token == SYM_PAB) return true;
 	if (token == SYM_PAF) return true;
 	if (token == SYM_SBB) return true;
-	if (token == SYM_SBF) return true;
 	if (token == SYM_DIV) return true;
+	if (token == SYM_SBF) return true;
 	if (token == SYM_MUL) return true;
 	if (token == SYM_MIN) return true;
 	if (token == SYM_ADD) return true;
 	if (token == SYM_PER) return true;
 	if (token == SYM_COM) return true;
 	if (token == SYM_SMC) return true;
+	return false;
+}
+
+bool is_symbol(char token) {
+	if (token == SYM_OR[0]) return true;
+	if (token == SYM_AND[0]) return true;
+	if (token == SYM_EQ[0]) return true;
+	if (token == SYM_TIL[0]) return true;
+	if (token == SYM_GT[0]) return true;
+	if (token == SYM_LT[0]) return true;
+	if (token == SYM_CBB[0]) return true;
+	if (token == SYM_CBF[0]) return true;
+	if (token == SYM_PAB[0]) return true;
+	if (token == SYM_DIV[0]) return true;
+	if (token == SYM_PAF[0]) return true;
+	if (token == SYM_SBB[0]) return true;
+	if (token == SYM_SBF[0]) return true;
+	if (token == SYM_MUL[0]) return true;
+	if (token == SYM_MIN[0]) return true;
+	if (token == SYM_ADD[0]) return true;
+	if (token == SYM_PER[0]) return true;
+	if (token == SYM_COM[0]) return true;
+	if (token == SYM_SMC[0]) return true;
 	return false;
 }
 
@@ -146,6 +178,7 @@ bool is_valid_str(string token) {
 	if (token.size() < 2) return false;
 	if (token.front() != '\"' && token.front() != '\'') return false;
 	if (token.back() != '\"' && token.back() != '\'') return false;
+	return true;
 }
 
 // check if valid integer constant
@@ -156,11 +189,8 @@ bool is_valid_integer(string token) {
 }
 
 // check if comment
-bool is_comment(string token) {
-
-
-
-}
+bool is_comment(string token) { return token == COM_SYM; }
+bool is_multicomment(string token) { return token == M_COM_SYM; }
 
 string string_val(string token) {
     return token.substr(1, token.size() - 2);
@@ -169,7 +199,6 @@ string string_val(string token) {
 // given a token, returns the token type
 string token_type(string token) {
 	if (token.size() == 0) return INVALID_TYPE;
-    if (is_comment(token)) return COMMENT;
 	if (is_keyword(token)) return TYPE_KW;
 	if (is_symbol(token)) return TYPE_SYM;
 	if (is_valid_integer(token)) return TYPE_IC;
@@ -182,6 +211,10 @@ struct Token {
     string token;
     string type;
 
+	Token() {
+		token =""; type = "";
+	}
+
     Token(string token, string type) {
         this->token = token;
         this->type = type;
@@ -191,6 +224,11 @@ struct Token {
 struct Tokenizer {
 
     ifstream *fin;
+
+	//constructor
+    Tokenizer() {
+        //fin remains undefined
+    }
 
     //constructor
     Tokenizer(ifstream &fin) {
@@ -205,17 +243,35 @@ struct Tokenizer {
         char c = 'a';
 
         //read until a valid token
-        while (type == INVALID_TYPE) {
-            if (c == '\n') break;
-            fin->get(c);
+        while (true) {
+			if(!fin->get(c)) return END_TOKEN_BUILD;
+			if (c == '\n' || c == ' ' || c == '\t') break;
+			if (c == '/') {
+				if ((char)fin->peek() == '/') {
+					//continue till you fine \n
+					while (true) {
+						if(!fin->get(c)) return END_TOKEN_BUILD;
+						if (c == '\n') break;
+					}
+				} else if ((char)fin->peek() == '*') {
+					//continue till you find */
+					char prev = c;
+					while (true) {
+						if(!fin->get(c)) return END_TOKEN_BUILD;
+						if (prev == '*' && c == '/') break;
+						prev = c;
+					}
+				}
+				break;
+			}
             token += c;
-            type = token_type(token);
+			if (is_symbol((char)fin->peek())) break;
         }
+		type = token_type(token);
 
-        if (type == COMMENT) {
-            //skip line
-			while (c != '\n') fin->get(c);
-        } else if (type == TYPE_IC) {
+		//cout << token << endl;
+
+        if (type == TYPE_IC) {
             //pass whole token
 			return Token(token, type);
         } else if (type == TYPE_SC) {
@@ -235,8 +291,8 @@ struct Tokenizer {
 			return Token(token, type);
         } else {
             //pass
+			return tokenize();
         }
-
     }
 
 };
@@ -245,14 +301,15 @@ struct Tokenizer {
 #define O2			"</"
 #define C0			">"
 #define CLASS		"class"
+
 #define SUBR_DEC	"subroutine_declaration"
 #define SUBR_BODY	"subroutine_body"
+
 #define PAR_LIST	"parameter_list"
 #define STATEMENTS	"statements"
 
 #define WHILE_STAT	"while_statement"
 #define IF_STAT		"if_statement"
-#define ELSE_STAT	"else_statement"
 
 #define LET_STAT	"let_statement"
 #define DO_STAT		"do_statement"
@@ -264,17 +321,23 @@ struct Tokenizer {
 #define EXP_LIST	"expression_list"
 #define TERM		"term"
 
+
+
 struct Engine {
 
 	ofstream *fout;
 	Tokenizer tokenizer;
-	string prepend = "";
+	string prepend;
 	Token token;
-
+	
 	Engine(ofstream &fout, ifstream &fin) {
 		this->fout = &fout;
 		tokenizer = Tokenizer(fin);
+		prepend = "";
+		token = Token("", "");
 	}
+
+	void compile() { compile_class(); }
 
 	void indent() { prepend += '\t'; }
 	void undent() { prepend += '\t'; }
@@ -283,109 +346,261 @@ struct Engine {
 	void set_ifile(ofstream &fout) { this->fout = &fout; }
 	void set_ofile(ifstream &fin) { tokenizer = Tokenizer(fin); }
 
-	void begin_compilation() {
-		compile_next();
-	}
+	void to(string tag) { (*fout) << (prepend + O1 + tag + C0) << endl; indent(); }
+	void tc(string tag) { (*fout) << (prepend + O2 + tag + C0) << endl; undent(); }
+	void t(string tag, string contents) { (*fout) << (prepend + O1 + tag + C0 + contents + O2 + tag + C0) << endl; }
+	void t() { t(token.type, token.token); }
+	void tna() { t(); advance(); }
 
-	void compile_next() {
+	void compile_class() {
+		to(CLASS);
 		advance();
-		if (token.type == TYPE_KW) {
-			//determine next based off keyword
+		if (token.token != KW_CLASS) THROW_TOKEN;
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN;
+		t();
 
+		//series like this: class class_id { cvars subrs }
 
-
-		} else if (token.type == TYPE_SYM) {
-			//two special types of symbols: } and ;
-			// } ends if, else, and while statements, and also the class or subroutine
-			// ; ends do, let, return, and both types of variable declarations
-			//for both, simply escape the recursion and do not call compile_next();
-			cout << prepend << O1 << token.type << C0 << token.token << O2 << token.type << C0 << end;
-			//handling }
-			//handling ;
-			if (token.token == SYM_SMC || token.token == SYM_CBB) return;
-
-		} else if (token.type == TYPE_ID) {
-			cout << prepend << O1 << token.type << C0 << token.token << O2 << token.type << C0 << end;
-
-		} else if (token.type == TYPE_IC) {
-			cout << prepend << O1 << token.type << C0 << token.token << O2 << token.type << C0 << end;
-
-		} else if (token.type == TYPE_SC) {
-			cout << prepend << O1 << token.type << C0 << token.token << O2 << token.type << C0 << end;
-
+		//while loop
+		while (token.token != SYM_CBB) {
+			advance();
+			if (token.token == KW_FUNCTION || token.token == KW_METHOD || token.token == KW_CONSTRUCTOR) {
+				compile_subr();
+			} else if (token.token == KW_FIELD || token.token == KW_STATIC) {
+				compile_cvar_dec();
+			} else {
+				THROW_TOKEN;
+			}
 		}
 
-		compile_next();
+ 		tc(CLASS);
 	}
-	
-	void compile_class() {
-		fout << prepend << O1 << CLASS << C0 << endl;
-		indent();
-		compile_next();
-		undent();
-		fout << prepend << O2 << CLASS << C0 << endl;
-	}
+	void compile_cvar_dec() {
+		to(C_VAR_DEC);
 
-	void compile_class_var() {
-		
-	}
+		//series like this: static_or_field data_type var_id; 
 
+		if (token.token != KW_STATIC && token.token != KW_FIELD) THROW_TOKEN;
+		tna();
+		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN;
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_SMC) THROW_TOKEN;
+		t();
+
+		tc(C_VAR_DEC);
+	}
 	void compile_subr() {
+		to(SUBR_DEC);
+		//series like subr_type return_type subr_id (param_list) { subr_body }
 
+		if (token.token != KW_FUNCTION && token.token != KW_METHOD && token.token != KW_CONSTRUCTOR) THROW_TOKEN;
+		tna();
+		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN;
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_PAF) THROW_TOKEN;
+		t();
+		compile_param_list();
+		advance();
+		if (token.token != SYM_PAB) THROW_TOKEN;
+		tna();
+
+		compile_subr_body();
+		tc(SUBR_DEC);
 	}
-
 	void compile_param_list() {
-		
-	}
+		to(PAR_LIST);
 
+		//series like: KW ID, KW ID, ... KW ID, KW ID
+		while(true) {
+			if (token.token == SYM_PAB) break;
+			if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN;
+			tna();
+			if (token.type != TYPE_ID) THROW_TOKEN;
+			tna();
+			if (token.token != SYM_COM) break;
+			tna();
+		}
+		tc(PAR_LIST);
+	}
 	void compile_subr_body() {
-		
-	}
+		to(SUBR_BODY);
+		//series like: { statements }
 
+		if (token.token != SYM_CBF) THROW_TOKEN;
+		t();
+		advance();
+
+		compile_statements();
+
+		if (token.token != SYM_CBB) THROW_TOKEN;
+		t();
+
+		tc(SUBR_BODY);
+	}
 	void compile_var_dec() {
-		
-	}
+		to(VAR_DEC);
 
+		//series like: var type_id_or_prim_data_type var_id;
+		if (token.token != KW_VAR) THROW_TOKEN;
+		tna();
+		if (token.type != TYPE_ID && token.token != KW_BOOL && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN;
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN;
+		tna();
+
+		tc(VAR_DEC);
+	}
 	void compile_statements() {
+		to(STATEMENTS);
 
+		tc(STATEMENTS);
 	}
+	void compile_let() {
+		to(LET_STAT);
 
-	void compile_let_dec() {
-		
+		//series: let var_id = expression
+		if (token.token != KW_LET) THROW_TOKEN;
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_EQ) THROW_TOKEN;
+		tna();
+
+		compile_expression();
+
+		tc(LET_STAT);
 	}
-
 	void compile_if() {
-		
-	}
+		to(IF_STAT);
 
+		//if (expression) { statements }
+		if (token.token != KW_IF) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_PAF) THROW_TOKEN;
+		tna();
+		compile_expression();
+		if (token.token != SYM_PAB) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_CBF) THROW_TOKEN;
+		tna();
+		compile_statements();
+		if (token.token != SYM_CBB) THROW_TOKEN;
+		tna();
+
+		tc(IF_STAT);
+	}
 	void compile_while() {
-		
-	}
+		to(WHILE_STAT);
 
+		//while (expression) { statements }
+		if (token.token != KW_WHILE) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_PAF) THROW_TOKEN;
+		tna();
+		compile_expression();
+		if (token.token != SYM_PAB) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_CBF) THROW_TOKEN;
+		tna();
+		compile_statements();
+		if (token.token != SYM_CBB) THROW_TOKEN;
+		tna();
+
+		tc(WHILE_STAT);
+	}
 	void compile_do() {
+		to(DO_STAT);
 
+		if (token.token != KW_DO) THROW_TOKEN;
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_PER) THROW_TOKEN;
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_PAF) THROW_TOKEN;
+		tna();
+		compile_exp_list();
+		if (token.token != SYM_PAB) THROW_TOKEN;
+		tna();
+		if (token.token != SYM_SMC) THROW_TOKEN;
+		tna();
+
+		tc(DO_STAT);
 	}
-
 	void compile_return() {
-		
+		to(RET_STAT);
+		if (token.token != KW_RETURN) THROW_TOKEN;
+		tna();
+		if (token.token == SYM_SMC) {
+			tna();
+		} else {
+			compile_expression();
+			if (token.token != SYM_SMC) THROW_TOKEN;
+			tna();
+		}
+		tc(RET_STAT);
 	}
-
-	void compile_exp() {
+	void compile_expression() {
+		to(EXPRESSION);
 		
-	}
+		if (token.token == SYM_MIN) tna();
 
+		while (true) {
+			compile_term();
+			tna();
+			if (token.token == SYM_PAB || token.token == SYM_SMC) break;
+			if (token.token == SYM_PAF) {
+				tna();
+				compile_expression();
+				if(token.token != SYM_PAB) THROW_TOKEN;
+			}
+			tna();
+		}
+
+		tc(EXPRESSION);
+	}
 	void compile_term() {
+		to(TERM);
 		
-	}
+		while (
+			token.type != TYPE_SYM ||
+			(token.token != SYM_ADD && token.token != SYM_MIN && token.token != SYM_DIV && 
+			token.token != SYM_OR && token.token != SYM_MUL && token.token != SYM_ALT_LT && token.token != SYM_ALT_GT && token.token != SYM_ALT_AND)
+		) {
+			tna();
+			if (token.token == SYM_SBF || token.token == SYM_PAF) {
+				compile_exp_list();
+			}
+		}
 
-	int compile_exp_list() {
-		
+		tc(TERM);
 	}
-
+	void compile_exp_list() {
+		to(EXP_LIST);
+		//series like: exp, exp, exp
+		while(true) {
+			if (token.token == SYM_PAB) break;
+			compile_expression();
+			if (token.token != SYM_COM) break;
+			tna();
+		}
+		tc(EXP_LIST);
+	}
 };
 
-int main(int argc, char *argv[]) {
+int main() {
+	ifstream fin("test.jack");
+	ofstream fout("test.xml");
 
-	
+	Engine engine(fout, fin);
+
+	engine.compile();
 
 }
