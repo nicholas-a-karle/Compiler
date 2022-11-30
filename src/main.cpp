@@ -704,12 +704,85 @@ struct AnalyzerEngine {
 	}
 };
 
+#define SEG_ARG		"argument"
+#define SEG_LOC		"local"
+#define SEG_STAT	"static"
+#define SEG_THIS	"this"	
+#define SEG_THAT	"that"
+#define SEG_POINT	"pointer"
+#define SEG_TEMP	"temp"
+#define SPACE		" "
+
+#define PUSH		"push "
+#define POP			"pop "
+
+#define MATH_ADD	"add"
+#define MATH_SUB	"sub"
+#define MATH_NEG	"neg"
+#define MATH_EQ 	"eq"
+#define MATH_GT 	"gt"
+#define MATH_LT 	"lt"
+#define MATH_AND	"and"
+#define MATH_OR 	"or"
+#define MATH_NOT	"not"
+
+#define LABEL		"label "
+#define GOTO		"goto "
+#define IFGOTO		"if-goto "
+#define FUNC		"function "
+#define CALL		"call "
+#define RETURN		"return"
+
 struct VMWriter{
 
-	
+	ofstream* fout;
+
+	VMWriter(ofstream &fout) {
+		this->fout = &fout;
+	}
+
+	void set_file(ofstream &fout) { this->fout = &fout; }
+
+	void out(string str) { (*fout) << str << endl; }
+
+	void push(string segment, int index) {
+		out(PUSH + segment + SPACE + to_string(index));
+	}
+
+	void pop(string segment, int index) {
+		out(POP + segment + SPACE + to_string(index));
+	}
+
+	void add() {out(MATH_ADD); }
+	void sub() {out(MATH_SUB); }
+	void neg() {out(MATH_NEG); }
+	void eq()  {out(MATH_EQ); }
+	void gt()  {out(MATH_GT); }
+	void lt()  {out(MATH_LT); }
+	void and() {out(MATH_AND); }
+	void or()  {out(MATH_OR); }
+	void not() {out(MATH_NOT); }
+
+	void label(string label) { out(LABEL + label); }
+
+	void _goto(string label) { out(GOTO + label); }
+
+	void _ifgoto(string label) { out(IFGOTO + label); }
+
+	void call(string label, int nArgs) {
+		out(CALL + label + SPACE + to_string(nArgs));
+	}
+
+	void func(string label, int nVars) {
+		out(FUNC + label + SPACE + to_string(nVars));
+	}
+
+	void ret() { out(RETURN); }
 
 };
+
 struct CompilationEngine{};
+
 struct Compiler {};
 
 int main(int argc, char* argv[]) {
