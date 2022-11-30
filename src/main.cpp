@@ -48,12 +48,12 @@ using namespace std;
 #define SYM_EQ			"="
 #define SYM_TIL			"~"
 
-#define SYM_ALT_LT		"&lt"
-#define SYM_ALT_GT		"&gt"
-#define SYM_ALT_AND		"&and"
+#define SYM_ALT_LT		"&lt;"
+#define SYM_ALT_GT		"&gt;"
+#define SYM_ALT_AND		"&amp;"
 
-#define TYPE_SC			"string_constant"
-#define TYPE_IC			"integer_constant"
+#define TYPE_SC			"stringConstant"
+#define TYPE_IC			"integerConstant"
 #define TYPE_ID			"identifier"
 #define INVALID_TYPE	"INVALID_TYPE"
 
@@ -63,7 +63,7 @@ using namespace std;
 #define MULTI_COMM		"MULTILINE COMMENT"
 #define COMM_DIV		"TBD DIV OR COMM"
 
-#define THROW_TOKEN		do { cout << "ERROR" << endl; throw std::invalid_argument("INVALID TOKEN!!!!"); } while(0)
+#define THROW_TOKEN(x)		do { cout << x << endl; throw std::invalid_argument(x); } while(0)
 
 #define END_TOKEN_BUILD	Token("END", "END")
 #define END				"END"
@@ -245,27 +245,49 @@ struct Tokenizer {
         //read until a valid token
         while (true) {
 			if(!fin->get(c)) return END_TOKEN_BUILD;
+
 			if (c == '\n' || c == ' ' || c == '\t') break;
 			if (c == '/') {
-				if ((char)fin->peek() == '/') {
+				c = fin->peek();
+				if (c == SYM_DIV[0]) {
 					//continue till you fine \n
 					while (true) {
 						if(!fin->get(c)) return END_TOKEN_BUILD;
-						if (c == '\n') break;
+						if (c == '\n') return tokenize();
 					}
-				} else if ((char)fin->peek() == '*') {
+				} else if (c == '*') {
 					//continue till you find */
 					char prev = c;
 					while (true) {
 						if(!fin->get(c)) return END_TOKEN_BUILD;
-						if (prev == '*' && c == '/') break;
+						if (prev == '*' && c == '/') return tokenize();
 						prev = c;
 					}
+				} else {
+					token += '/';
+					return Token(token, TYPE_SYM);
 				}
-				break;
+			}
+			if (c == '\"') {
+				//get string constant, go until you hit " not after escape
+				bool escaped = false;
+				while (fin->get(c)) {
+					if (escaped) {
+						if (c == '\\') token += c;
+						if (c == '\"') token += c;
+						else THROW_TOKEN("ESCAPE CHARACTER FOR NO REASON");
+						escaped = false;
+					} else {
+						if (c == '\\') escaped = true;
+						else if (c == '\"') break;
+						else token += c;
+					}
+				}
+				return Token(token, TYPE_SC);
 			}
             token += c;
 			if (is_symbol((char)fin->peek())) break;
+			if (is_symbol(token)) break;
         }
 		type = token_type(token);
 
@@ -274,9 +296,6 @@ struct Tokenizer {
         if (type == TYPE_IC) {
             //pass whole token
 			return Token(token, type);
-        } else if (type == TYPE_SC) {
-            //remove qoutes
-			return Token(string_val(token), type);
         } else if (type == TYPE_KW) {
             //pass whole token
 			return Token(token, type);
@@ -302,35 +321,35 @@ struct Tokenizer {
 #define C0			">"
 #define CLASS		"class"
 
-#define SUBR_DEC	"subroutine_declaration"
-#define SUBR_BODY	"subroutine_body"
+#define SUBR_DEC	"subroutineDec"
+#define SUBR_BODY	"subroutineBody"
 
-#define PAR_LIST	"parameter_list"
+#define PAR_LIST	"parameterList"
 #define STATEMENTS	"statements"
 
-#define WHILE_STAT	"while_statement"
-#define IF_STAT		"if_statement"
+#define WHILE_STAT	"whileStatement"
+#define IF_STAT		"ifStatement"
 
-#define LET_STAT	"let_statement"
-#define DO_STAT		"do_statement"
-#define RET_STAT	"return_statement"
-#define VAR_DEC		"variable_declaration"
-#define C_VAR_DEC	"class_variable_declaration"
+#define LET_STAT	"letStatement"
+#define DO_STAT		"doStatement"
+#define RET_STAT	"returnStatement"
+#define VAR_DEC		"varDec"
+#define C_VAR_DEC	"classVarDec"
 
 #define EXPRESSION	"expression"
-#define EXP_LIST	"expression_list"
+#define EXP_LIST	"expressionList"
 #define TERM		"term"
 
 
 
-struct Engine {
+struct AnalyzerEngine {
 
 	ofstream *fout;
 	Tokenizer tokenizer;
 	string prepend;
 	Token token;
 	
-	Engine(ofstream &fout, ifstream &fin) {
+	AnalyzerEngine(ofstream &fout, ifstream &fin) {
 		this->fout = &fout;
 		tokenizer = Tokenizer(fin);
 		prepend = "";
@@ -341,13 +360,15 @@ struct Engine {
 
 	void indent() { prepend += '\t'; }
 	void undent() { if (prepend.size() > 0) prepend = prepend.substr(1); }
-	void advance() { token = tokenizer.tokenize(); }
+	void advance() { 
+		token = tokenizer.tokenize(); 
+		cout << token.token << endl; }
 
 	void set_ifile(ofstream &fout) { this->fout = &fout; }
 	void set_ofile(ifstream &fin) { tokenizer = Tokenizer(fin); }
 
 	void to(string tag) { (*fout) << (prepend + O1 + tag + C0) << endl; indent(); }
-	void tc(string tag) { (*fout) << (prepend + O2 + tag + C0) << endl; undent(); }
+	void tc(string tag) { undent(); (*fout) << (prepend + O2 + tag + C0) << endl; }
 	void t(string tag, string contents) { (*fout) << (prepend + O1 + tag + C0 + contents + O2 + tag + C0) << endl; }
 	void t() { t(token.type, token.token); }
 	void tna() { t(); advance(); }
@@ -355,24 +376,26 @@ struct Engine {
 	void compile_class() {
 		to(CLASS);
 		advance();
-		if (token.token != KW_CLASS) THROW_TOKEN;
+		if (token.token != KW_CLASS) THROW_TOKEN("TOKEN SHOULD BE \"class\"");
 		tna();
-		if (token.type != TYPE_ID) THROW_TOKEN;
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
 		tna();
-		if (token.token != SYM_CBF) THROW_TOKEN;
+		if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
 		t();
 
 		//series like this: class class_id { cvars subrs }
 
 		//while loop
-		while (token.token != SYM_CBB) {
+		while (token.token != END) {
 			advance();
 			if (token.token == KW_FUNCTION || token.token == KW_METHOD || token.token == KW_CONSTRUCTOR) {
 				compile_subr();
 			} else if (token.token == KW_FIELD || token.token == KW_STATIC) {
 				compile_cvar_dec();
+			} else if (token.token == SYM_CBB) {
+				tna();
 			} else {
-				THROW_TOKEN;
+				THROW_TOKEN("TOKEN SHOULD BE \"}\", CLASS VARIABLE, OR SUBROUTINE TYPE");
 			}
 		}
 
@@ -383,20 +406,20 @@ struct Engine {
 
 		//series like this: static_or_field data_type var_id ... , var_id, var_id; 
 
-		if (token.token != KW_STATIC && token.token != KW_FIELD) THROW_TOKEN;
+		if (token.token != KW_STATIC && token.token != KW_FIELD) THROW_TOKEN("TOKEN SHOULD BE \"static\" OR \"field\"");
 		tna();
-		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN;
+		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT && token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE DATA TYPE");
 		tna();
-		if (token.type != TYPE_ID) THROW_TOKEN;
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
 		tna();
 
 		while (token.token == SYM_COM) {
 			tna();
-			if (token.type != TYPE_ID) THROW_TOKEN;
+			if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
 			tna();
 		}
 
-		if (token.token != SYM_SMC) THROW_TOKEN;
+		if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
 		t();
 
 		tc(C_VAR_DEC);
@@ -405,17 +428,16 @@ struct Engine {
 		to(SUBR_DEC);
 		//series like subr_type return_type subr_id (param_list) { subr_body }
 
-		if (token.token != KW_FUNCTION && token.token != KW_METHOD && token.token != KW_CONSTRUCTOR) THROW_TOKEN;
+		if (token.token != KW_FUNCTION && token.token != KW_METHOD && token.token != KW_CONSTRUCTOR) THROW_TOKEN("TOKEN SHOULD BE SUBROUTINE TYPE");
 		tna();
-		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT && token.type != TYPE_ID) THROW_TOKEN;
+		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT && token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE DATA TYPE");
 		tna();
-		if (token.type != TYPE_ID) THROW_TOKEN;
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
 		tna();
-		if (token.token != SYM_PAF) THROW_TOKEN;
-		t();
+		if (token.token != SYM_PAF) THROW_TOKEN("TOKEN SHOULD BE \"(\"");
+		tna();
 		compile_param_list();
-		advance();
-		if (token.token != SYM_PAB) THROW_TOKEN;
+		if (token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
 		tna();
 
 		compile_subr_body();
@@ -427,9 +449,9 @@ struct Engine {
 		//series like: KW ID, KW ID, ... KW ID, KW ID
 		while(true) {
 			if (token.token == SYM_PAB) break;
-			if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN;
+			if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN("TOKEN SHOULD BE DATA TYPE");
 			tna();
-			if (token.type != TYPE_ID) THROW_TOKEN;
+			if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
 			tna();
 			if (token.token != SYM_COM) break;
 			tna();
@@ -440,13 +462,15 @@ struct Engine {
 		to(SUBR_BODY);
 		//series like: { statements }
 
-		if (token.token != SYM_CBF) THROW_TOKEN;
+		if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
 		t();
 		advance();
 
+		while (token.token == KW_VAR) compile_var_dec();
+
 		compile_statements();
 
-		if (token.token != SYM_CBB) THROW_TOKEN;
+		if (token.token != SYM_CBB) THROW_TOKEN("TOKEN SHOULD BE \"}\"");
 		t();
 
 		tc(SUBR_BODY);
@@ -455,17 +479,40 @@ struct Engine {
 		to(VAR_DEC);
 
 		//series like: var type_id_or_prim_data_type var_id;
-		if (token.token != KW_VAR) THROW_TOKEN;
+		if (token.token != KW_VAR) THROW_TOKEN("TOKEN SHOULD BE \"var\"");
 		tna();
-		if (token.type != TYPE_ID && token.token != KW_BOOL && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN;
+		if (token.type != TYPE_ID && token.token != KW_BOOL && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN("TOKEN SHOULD BE DATA TYPE");
 		tna();
-		if (token.type != TYPE_ID) THROW_TOKEN;
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+		tna();
+
+		while (token.token == SYM_COM) {
+			tna();
+			if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+			tna();
+		}
+		
+		if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
 		tna();
 
 		tc(VAR_DEC);
 	}
 	void compile_statements() {
 		to(STATEMENTS);
+		
+		while (token.token != SYM_CBB) {
+			if (token.token == KW_DO) {
+				compile_do();
+			} else if (token.token == KW_WHILE) {
+				compile_while();
+			} else if (token.token == KW_IF) {
+				compile_if();
+			} else if (token.token == KW_LET) {
+				compile_let();
+			} else if (token.token == KW_RETURN) {
+				compile_return();
+			} else THROW_TOKEN("TOKEN SHOULD BE A STATEMENT");
+		}
 
 		tc(STATEMENTS);
 	}
@@ -473,14 +520,25 @@ struct Engine {
 		to(LET_STAT);
 
 		//series: let var_id = expression
-		if (token.token != KW_LET) THROW_TOKEN;
+		if (token.token != KW_LET) THROW_TOKEN("TOKEN SHOULD BE \"let\"");
 		tna();
-		if (token.type != TYPE_ID) THROW_TOKEN;
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
 		tna();
-		if (token.token != SYM_EQ) THROW_TOKEN;
+		if (token.token != SYM_EQ) {
+			//sqr brackets, array
+			if (token.token != SYM_SBF) THROW_TOKEN("TOKEN SHOULD BE \"[\"");
+			tna();
+			compile_expression();
+			if (token.token != SYM_SBB) THROW_TOKEN("TOKEN SHOULD BE \"]\"");
+			tna();
+		} //else do nothing
+		if (token.token != SYM_EQ) THROW_TOKEN("TOKEN SHOULD BE \"=\"");
 		tna();
 
 		compile_expression();
+		
+		if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
+		tna();
 
 		tc(LET_STAT);
 	}
@@ -488,18 +546,28 @@ struct Engine {
 		to(IF_STAT);
 
 		//if (expression) { statements }
-		if (token.token != KW_IF) THROW_TOKEN;
+		if (token.token != KW_IF) THROW_TOKEN("TOKEN SHOULD BE \"if\"");
 		tna();
-		if (token.token != SYM_PAF) THROW_TOKEN;
+		if (token.token != SYM_PAF) THROW_TOKEN("TOKEN SHOULD BE \"(\"");
 		tna();
 		compile_expression();
-		if (token.token != SYM_PAB) THROW_TOKEN;
+		if (token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
 		tna();
-		if (token.token != SYM_CBF) THROW_TOKEN;
+		if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
 		tna();
 		compile_statements();
-		if (token.token != SYM_CBB) THROW_TOKEN;
+		if (token.token != SYM_CBB) THROW_TOKEN("TOKEN SHOULD BE \"}\"");
 		tna();
+
+		//check for trailing else statement
+		if (token.token == KW_ELSE) {
+			tna();
+			if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
+			tna();
+			compile_statements();
+			if (token.token != SYM_CBB) THROW_TOKEN("TOKEN SHOULD BE \"}\"");
+			tna();
+		}
 
 		tc(IF_STAT);
 	}
@@ -507,17 +575,17 @@ struct Engine {
 		to(WHILE_STAT);
 
 		//while (expression) { statements }
-		if (token.token != KW_WHILE) THROW_TOKEN;
+		if (token.token != KW_WHILE) THROW_TOKEN("TOKEN SHOULD BE \"while\"");
 		tna();
-		if (token.token != SYM_PAF) THROW_TOKEN;
+		if (token.token != SYM_PAF) THROW_TOKEN("TOKEN SHOULD BE \"(\"");
 		tna();
 		compile_expression();
-		if (token.token != SYM_PAB) THROW_TOKEN;
+		if (token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
 		tna();
-		if (token.token != SYM_CBF) THROW_TOKEN;
+		if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
 		tna();
 		compile_statements();
-		if (token.token != SYM_CBB) THROW_TOKEN;
+		if (token.token != SYM_CBB) THROW_TOKEN("TOKEN SHOULD BE \"}\"");
 		tna();
 
 		tc(WHILE_STAT);
@@ -525,67 +593,99 @@ struct Engine {
 	void compile_do() {
 		to(DO_STAT);
 
-		if (token.token != KW_DO) THROW_TOKEN;
+		//series like: do id.id() or do id or do id.id.id ... .id()
+
+		if (token.token != KW_DO) THROW_TOKEN("TOKEN SHOULD BE \"do\"");
 		tna();
-		if (token.type != TYPE_ID) THROW_TOKEN;
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
 		tna();
-		if (token.token != SYM_PER) THROW_TOKEN;
-		tna();
-		if (token.type != TYPE_ID) THROW_TOKEN;
-		tna();
-		if (token.token != SYM_PAF) THROW_TOKEN;
+
+		while (token.token == SYM_PER) {
+			if (token.token != SYM_PER) THROW_TOKEN("TOKEN SHOULD BE \".\"");
+			tna();
+			if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+			tna();
+		}
+
+		if (token.token != SYM_PAF) THROW_TOKEN("TOKEN SHOULD BE \"(\"");
 		tna();
 		compile_exp_list();
-		if (token.token != SYM_PAB) THROW_TOKEN;
+		if (token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
 		tna();
-		if (token.token != SYM_SMC) THROW_TOKEN;
+		if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
 		tna();
 
 		tc(DO_STAT);
 	}
 	void compile_return() {
 		to(RET_STAT);
-		if (token.token != KW_RETURN) THROW_TOKEN;
+		if (token.token != KW_RETURN) THROW_TOKEN("TOKEN SHOULD BE \"return\"");
 		tna();
 		if (token.token == SYM_SMC) {
 			tna();
 		} else {
 			compile_expression();
-			if (token.token != SYM_SMC) THROW_TOKEN;
+			if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
 			tna();
 		}
 		tc(RET_STAT);
 	}
 	void compile_expression() {
 		to(EXPRESSION);
-		
-		if (token.token == SYM_MIN) tna();
+		/*if (token.token == SYM_PAF) {
+			tna();
+			compile_expression();
+			if(token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
+			tna();
+		}*/
 
 		while (true) {
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
 			compile_term();
-			tna();
-			if (token.token == SYM_PAB || token.token == SYM_SMC) break;
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
+			//tna();       
+			//if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM) break;
 			if (token.token == SYM_PAF) {
 				tna();
 				compile_expression();
-				if(token.token != SYM_PAB) THROW_TOKEN;
+				if(token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
 			}
 			tna();
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
 		}
 
 		tc(EXPRESSION);
 	}
 	void compile_term() {
 		to(TERM);
-		
-		while (
-			token.type != TYPE_SYM ||
-			(token.token != SYM_ADD && token.token != SYM_MIN && token.token != SYM_DIV && 
-			token.token != SYM_OR && token.token != SYM_MUL && token.token != SYM_ALT_LT && token.token != SYM_ALT_GT && token.token != SYM_ALT_AND)
+		if (token.token == SYM_MIN || token.token == SYM_TIL) {
+			tna();
+			compile_term();
+		}
+		//have to determine if this term is a function call or not
+		bool function_call = false;
+
+		if (token.token == SYM_PAF || token.token == SYM_SBF) {
+			tna();
+			if (function_call) compile_exp_list();
+			else compile_expression();
+			if(token.token != SYM_PAB && token.token != SYM_SBB) THROW_TOKEN("TOKEN SHOULD BE \")\" OR \"]\"");
+			tna();
+		}
+		while (             
+			token.token != SYM_ADD && token.token != SYM_MIN && token.token != SYM_DIV && 
+			token.token != SYM_OR && token.token != SYM_MUL && token.token != SYM_ALT_LT && 
+			token.token != SYM_ALT_GT && token.token != SYM_ALT_AND && token.token != SYM_COM &&
+			token.token != SYM_SMC && token.token != SYM_PAB && token.token != SYM_SBB && token.token != SYM_EQ
 		) {
 			tna();
-			if (token.token == SYM_SBF || token.token == SYM_PAF) {
-				compile_exp_list();
+			if (token.token == SYM_PER) function_call = true;
+			if (token.token == SYM_PAF || token.token == SYM_SBF) {
+				tna();
+				if (function_call) compile_exp_list();
+				else compile_expression();
+				if(token.token != SYM_PAB && token.token != SYM_SBB) THROW_TOKEN("TOKEN SHOULD BE \")\" OR \"]\"");
+				tna();
 			}
 		}
 
@@ -604,11 +704,386 @@ struct Engine {
 	}
 };
 
-int main() {
+struct CompilationEngine {
+
+	ofstream *fout;
+	Tokenizer tokenizer;
+	string prepend;
+	Token token;
+	
+	CompilationEngine(ofstream &fout, ifstream &fin) {
+		this->fout = &fout;
+		tokenizer = Tokenizer(fin);
+		prepend = "";
+		token = Token("", "");
+	}
+
+	void compile() { compile_class(); }
+
+	void indent() { prepend += '\t'; }
+	void undent() { if (prepend.size() > 0) prepend = prepend.substr(1); }
+	void advance() { 
+		token = tokenizer.tokenize(); 
+		cout << token.token << endl; }
+
+	void set_ifile(ofstream &fout) { this->fout = &fout; }
+	void set_ofile(ifstream &fin) { tokenizer = Tokenizer(fin); }
+
+	void to(string tag) { (*fout) << (prepend + O1 + tag + C0) << endl; indent(); }
+	void tc(string tag) { undent(); (*fout) << (prepend + O2 + tag + C0) << endl; }
+	void t(string tag, string contents) { (*fout) << (prepend + O1 + tag + C0 + contents + O2 + tag + C0) << endl; }
+	void t() { t(token.type, token.token); }
+	void tna() { t(); advance(); }
+
+	void compile_class() {
+		to(CLASS);
+		advance();
+		if (token.token != KW_CLASS) THROW_TOKEN("TOKEN SHOULD BE \"class\"");
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+		tna();
+		if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
+		t();
+
+		//series like this: class class_id { cvars subrs }
+
+		//while loop
+		while (token.token != END) {
+			advance();
+			if (token.token == KW_FUNCTION || token.token == KW_METHOD || token.token == KW_CONSTRUCTOR) {
+				compile_subr();
+			} else if (token.token == KW_FIELD || token.token == KW_STATIC) {
+				compile_cvar_dec();
+			} else if (token.token == SYM_CBB) {
+				tna();
+			} else {
+				THROW_TOKEN("TOKEN SHOULD BE \"}\", CLASS VARIABLE, OR SUBROUTINE TYPE");
+			}
+		}
+
+ 		tc(CLASS);
+	}
+	void compile_cvar_dec() {
+		to(C_VAR_DEC);
+
+		//series like this: static_or_field data_type var_id ... , var_id, var_id; 
+
+		if (token.token != KW_STATIC && token.token != KW_FIELD) THROW_TOKEN("TOKEN SHOULD BE \"static\" OR \"field\"");
+		tna();
+		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT && token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE DATA TYPE");
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+		tna();
+
+		while (token.token == SYM_COM) {
+			tna();
+			if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+			tna();
+		}
+
+		if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
+		t();
+
+		tc(C_VAR_DEC);
+	}
+	void compile_subr() {
+		to(SUBR_DEC);
+		//series like subr_type return_type subr_id (param_list) { subr_body }
+
+		if (token.token != KW_FUNCTION && token.token != KW_METHOD && token.token != KW_CONSTRUCTOR) THROW_TOKEN("TOKEN SHOULD BE SUBROUTINE TYPE");
+		tna();
+		if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT && token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE DATA TYPE");
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+		tna();
+		if (token.token != SYM_PAF) THROW_TOKEN("TOKEN SHOULD BE \"(\"");
+		tna();
+		compile_param_list();
+		if (token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
+		tna();
+
+		compile_subr_body();
+		tc(SUBR_DEC);
+	}
+	void compile_param_list() {
+		to(PAR_LIST);
+
+		//series like: KW ID, KW ID, ... KW ID, KW ID
+		while(true) {
+			if (token.token == SYM_PAB) break;
+			if (token.token != KW_BOOL && token.token != KW_VOID && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN("TOKEN SHOULD BE DATA TYPE");
+			tna();
+			if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+			tna();
+			if (token.token != SYM_COM) break;
+			tna();
+		}
+		tc(PAR_LIST);
+	}
+	void compile_subr_body() {
+		to(SUBR_BODY);
+		//series like: { statements }
+
+		if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
+		t();
+		advance();
+
+		while (token.token == KW_VAR) compile_var_dec();
+
+		compile_statements();
+
+		if (token.token != SYM_CBB) THROW_TOKEN("TOKEN SHOULD BE \"}\"");
+		t();
+
+		tc(SUBR_BODY);
+	}
+	void compile_var_dec() {
+		to(VAR_DEC);
+
+		//series like: var type_id_or_prim_data_type var_id;
+		if (token.token != KW_VAR) THROW_TOKEN("TOKEN SHOULD BE \"var\"");
+		tna();
+		if (token.type != TYPE_ID && token.token != KW_BOOL && token.token != KW_CHAR && token.token != KW_INT) THROW_TOKEN("TOKEN SHOULD BE DATA TYPE");
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+		tna();
+
+		while (token.token == SYM_COM) {
+			tna();
+			if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+			tna();
+		}
+		
+		if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
+		tna();
+
+		tc(VAR_DEC);
+	}
+	void compile_statements() {
+		to(STATEMENTS);
+		
+		while (token.token != SYM_CBB) {
+			if (token.token == KW_DO) {
+				compile_do();
+			} else if (token.token == KW_WHILE) {
+				compile_while();
+			} else if (token.token == KW_IF) {
+				compile_if();
+			} else if (token.token == KW_LET) {
+				compile_let();
+			} else if (token.token == KW_RETURN) {
+				compile_return();
+			} else THROW_TOKEN("TOKEN SHOULD BE A STATEMENT");
+		}
+
+		tc(STATEMENTS);
+	}
+	void compile_let() {
+		to(LET_STAT);
+
+		//series: let var_id = expression
+		if (token.token != KW_LET) THROW_TOKEN("TOKEN SHOULD BE \"let\"");
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+		tna();
+		if (token.token != SYM_EQ) {
+			//sqr brackets, array
+			if (token.token != SYM_SBF) THROW_TOKEN("TOKEN SHOULD BE \"[\"");
+			tna();
+			compile_expression();
+			if (token.token != SYM_SBB) THROW_TOKEN("TOKEN SHOULD BE \"]\"");
+			tna();
+		} //else do nothing
+		if (token.token != SYM_EQ) THROW_TOKEN("TOKEN SHOULD BE \"=\"");
+		tna();
+
+		compile_expression();
+		
+		if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
+		tna();
+
+		tc(LET_STAT);
+	}
+	void compile_if() {
+		to(IF_STAT);
+
+		//if (expression) { statements }
+		if (token.token != KW_IF) THROW_TOKEN("TOKEN SHOULD BE \"if\"");
+		tna();
+		if (token.token != SYM_PAF) THROW_TOKEN("TOKEN SHOULD BE \"(\"");
+		tna();
+		compile_expression();
+		if (token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
+		tna();
+		if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
+		tna();
+		compile_statements();
+		if (token.token != SYM_CBB) THROW_TOKEN("TOKEN SHOULD BE \"}\"");
+		tna();
+
+		//check for trailing else statement
+		if (token.token == KW_ELSE) {
+			tna();
+			if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
+			tna();
+			compile_statements();
+			if (token.token != SYM_CBB) THROW_TOKEN("TOKEN SHOULD BE \"}\"");
+			tna();
+		}
+
+		tc(IF_STAT);
+	}
+	void compile_while() {
+		to(WHILE_STAT);
+
+		//while (expression) { statements }
+		if (token.token != KW_WHILE) THROW_TOKEN("TOKEN SHOULD BE \"while\"");
+		tna();
+		if (token.token != SYM_PAF) THROW_TOKEN("TOKEN SHOULD BE \"(\"");
+		tna();
+		compile_expression();
+		if (token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
+		tna();
+		if (token.token != SYM_CBF) THROW_TOKEN("TOKEN SHOULD BE \"{\"");
+		tna();
+		compile_statements();
+		if (token.token != SYM_CBB) THROW_TOKEN("TOKEN SHOULD BE \"}\"");
+		tna();
+
+		tc(WHILE_STAT);
+	}
+	void compile_do() {
+		to(DO_STAT);
+
+		//series like: do id.id() or do id or do id.id.id ... .id()
+
+		if (token.token != KW_DO) THROW_TOKEN("TOKEN SHOULD BE \"do\"");
+		tna();
+		if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+		tna();
+
+		while (token.token == SYM_PER) {
+			if (token.token != SYM_PER) THROW_TOKEN("TOKEN SHOULD BE \".\"");
+			tna();
+			if (token.type != TYPE_ID) THROW_TOKEN("TOKEN SHOULD BE IDENTIFIER");
+			tna();
+		}
+
+		if (token.token != SYM_PAF) THROW_TOKEN("TOKEN SHOULD BE \"(\"");
+		tna();
+		compile_exp_list();
+		if (token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
+		tna();
+		if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
+		tna();
+
+		tc(DO_STAT);
+	}
+	void compile_return() {
+		to(RET_STAT);
+		if (token.token != KW_RETURN) THROW_TOKEN("TOKEN SHOULD BE \"return\"");
+		tna();
+		if (token.token == SYM_SMC) {
+			tna();
+		} else {
+			compile_expression();
+			if (token.token != SYM_SMC) THROW_TOKEN("TOKEN SHOULD BE \";\"");
+			tna();
+		}
+		tc(RET_STAT);
+	}
+	void compile_expression() {
+		to(EXPRESSION);
+		/*if (token.token == SYM_PAF) {
+			tna();
+			compile_expression();
+			if(token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
+			tna();
+		}*/
+
+		while (true) {
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
+			compile_term();
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
+			//tna();       
+			//if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM) break;
+			if (token.token == SYM_PAF) {
+				tna();
+				compile_expression();
+				if(token.token != SYM_PAB) THROW_TOKEN("TOKEN SHOULD BE \")\"");
+			}
+			tna();
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
+		}
+
+		tc(EXPRESSION);
+	}
+	void compile_term() {
+		to(TERM);
+		if (token.token == SYM_MIN || token.token == SYM_TIL) {
+			tna();
+			compile_term();
+		}
+		//have to determine if this term is a function call or not
+		bool function_call = false;
+
+		if (token.token == SYM_PAF || token.token == SYM_SBF) {
+			tna();
+			if (function_call) compile_exp_list();
+			else compile_expression();
+			if(token.token != SYM_PAB && token.token != SYM_SBB) THROW_TOKEN("TOKEN SHOULD BE \")\" OR \"]\"");
+			tna();
+		}
+		while (             
+			token.token != SYM_ADD && token.token != SYM_MIN && token.token != SYM_DIV && 
+			token.token != SYM_OR && token.token != SYM_MUL && token.token != SYM_ALT_LT && 
+			token.token != SYM_ALT_GT && token.token != SYM_ALT_AND && token.token != SYM_COM &&
+			token.token != SYM_SMC && token.token != SYM_PAB && token.token != SYM_SBB && token.token != SYM_EQ
+		) {
+			tna();
+			if (token.token == SYM_PER) function_call = true;
+			if (token.token == SYM_PAF || token.token == SYM_SBF) {
+				tna();
+				if (function_call) compile_exp_list();
+				else compile_expression();
+				if(token.token != SYM_PAB && token.token != SYM_SBB) THROW_TOKEN("TOKEN SHOULD BE \")\" OR \"]\"");
+				tna();
+			}
+		}
+
+		tc(TERM);
+	}
+	void compile_exp_list() {
+		to(EXP_LIST);
+		//series like: exp, exp, exp
+		while(true) {
+			if (token.token == SYM_PAB) break;
+			compile_expression();
+			if (token.token != SYM_COM) break;
+			tna();
+		}
+		tc(EXP_LIST);
+	}
+
+};
+
+int main(int argc, char* argv[]) {
 	ifstream fin("test.jack");
 	ofstream fout("test.xml");
+	/*if (argc < 2) return -1;
+	if (argc < 3) {
+		string arg(argv[1]);
+		cout << arg << endl;
+		cout << (arg.substr(0, arg.find_last_of('.')) + "Output.xml") << endl;
+		fin = ifstream(arg);
+		fout = ofstream(arg.substr(0, arg.find_last_of('.')) + "Output.xml");
+	} else {
+		cout << argv[2] << endl << argv[1] << endl;
+		fin = ifstream(argv[2]);
+		fout = ofstream(argv[1]);
+	}*/
 
-	Engine engine(fout, fin);
+	AnalyzerEngine engine(fout, fin);
 
 	engine.compile();
 
