@@ -5,6 +5,72 @@
 #include <map>
 using namespace std;
 
+#define O1			"<"
+#define O2			"</"
+#define C0			">"
+#define CLASS		"class"
+
+#define SUBR_DEC	"subroutineDec"
+#define SUBR_BODY	"subroutineBody"
+
+#define PAR_LIST	"parameterList"
+#define STATEMENTS	"statements"
+
+#define WHILE_STAT	"whileStatement"
+#define IF_STAT		"ifStatement"
+
+#define LET_STAT	"letStatement"
+#define DO_STAT		"doStatement"
+#define RET_STAT	"returnStatement"
+#define VAR_DEC		"varDec"
+#define C_VAR_DEC	"classVarDec"
+
+#define EXPRESSION	"expression"
+#define EXP_LIST	"expressionList"
+#define TERM		"term"
+
+#define SEG_ARG		"argument"
+#define SEG_LOC		"local"
+#define SEG_STAT	"static"
+#define SEG_THIS	"this"	
+#define SEG_THAT	"that"
+#define SEG_POINT	"pointer"
+#define SEG_TEMP	"temp"
+#define SPACE		" "
+
+#define PUSH_CONST	"push constant "
+
+#define PUSH		"push "
+#define POP			"pop "
+
+#define MATH_ADD	"add"
+#define MATH_SUB	"sub"
+#define MATH_NEG	"neg"
+#define MATH_EQ 	"eq"
+#define MATH_GT 	"gt"
+#define MATH_LT 	"lt"
+#define MATH_AND	"and"
+#define MATH_OR 	"or"
+#define MATH_NOT	"not"
+
+#define LABEL		"label "
+#define GOTO		"goto "
+#define IFGOTO		"if-goto "
+#define FUNC		"function "
+#define CALL		"call "
+#define RETURN		"return"
+#define KIND_STATIC	"KSTATIC"
+#define KIND_FIELD	"KFIELD"
+#define KIND_ARG	"KARG"
+#define KIND_VAR	"KVAR"
+#define NO_KIND		"KNONE"
+
+#define IN_STATIC	0
+#define IN_FIELD	1
+#define IN_ARG		2
+#define IN_VAR		3
+#define R_INS_SZ	4
+
 #define TYPE_KW			"keyword"
 #define KW_CLASS 		"class"
 #define KW_CONSTRUCTOR 	"constructor"
@@ -69,144 +135,7 @@ using namespace std;
 #define END_TOKEN_BUILD	Token("END", "END")
 #define END				"END"
 
-// check if letter
-bool is_letter(char c) {
-	return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z'));
-}
 
-// check if digit
-bool is_digit(char c) {
-	return ('0' <= c && c <= '9');
-}
-
-// given a token, returns whether or not the token is a keyword
-bool is_keyword(string token) {
-	if (token == KW_CLASS) return true;
-	if (token == KW_CONSTRUCTOR) return true;
-	if (token == KW_FUNCTION) return true;
-	if (token == KW_METHOD) return true;
-	if (token == KW_FIELD) return true;
-	if (token == KW_STATIC) return true;
-	if (token == KW_VAR) return true;
-	if (token == KW_INT) return true;
-	if (token == KW_CHAR) return true;
-	if (token == KW_BOOL) return true;
-	if (token == KW_VOID) return true;
-	if (token == KW_TRUE) return true;
-	if (token == KW_FALSE) return true;
-	if (token == KW_NULL) return true;
-	if (token == KW_THIS) return true;
-	if (token == KW_LET) return true;
-	if (token == KW_DO) return true;
-	if (token == KW_IF) return true;
-	if (token == KW_ELSE) return true;
-	if (token == KW_WHILE) return true;
-	if (token == KW_RETURN) return true;
-	return false;
-}
-
-// given a token, returns whether or not the token is a symbol
-bool is_symbol(string token) {
-	if (token.size() != 1) return false;
-	if (token == SYM_OR) return true;
-	if (token == SYM_AND) return true;
-	if (token == SYM_EQ) return true;
-	if (token == SYM_TIL) return true;
-	if (token == SYM_GT) return true;
-	if (token == SYM_LT) return true;
-	if (token == SYM_CBB) return true;
-	if (token == SYM_CBF) return true;
-	if (token == SYM_PAB) return true;
-	if (token == SYM_PAF) return true;
-	if (token == SYM_SBB) return true;
-	if (token == SYM_DIV) return true;
-	if (token == SYM_SBF) return true;
-	if (token == SYM_MUL) return true;
-	if (token == SYM_MIN) return true;
-	if (token == SYM_ADD) return true;
-	if (token == SYM_PER) return true;
-	if (token == SYM_COM) return true;
-	if (token == SYM_SMC) return true;
-	return false;
-}
-
-bool is_symbol(char token) {
-	if (token == SYM_OR[0]) return true;
-	if (token == SYM_AND[0]) return true;
-	if (token == SYM_EQ[0]) return true;
-	if (token == SYM_TIL[0]) return true;
-	if (token == SYM_GT[0]) return true;
-	if (token == SYM_LT[0]) return true;
-	if (token == SYM_CBB[0]) return true;
-	if (token == SYM_CBF[0]) return true;
-	if (token == SYM_PAB[0]) return true;
-	if (token == SYM_DIV[0]) return true;
-	if (token == SYM_PAF[0]) return true;
-	if (token == SYM_SBB[0]) return true;
-	if (token == SYM_SBF[0]) return true;
-	if (token == SYM_MUL[0]) return true;
-	if (token == SYM_MIN[0]) return true;
-	if (token == SYM_ADD[0]) return true;
-	if (token == SYM_PER[0]) return true;
-	if (token == SYM_COM[0]) return true;
-	if (token == SYM_SMC[0]) return true;
-	return false;
-}
-
-// check if integral
-bool is_integer(string token) {
-	//minus sign is considered symbol
-	for (auto iter = token.begin(); iter < token.end(); ++iter) {
-		if (!is_digit(*iter)) return false;
-	}
-	return true;
-}
-
-// check if valid identifier
-bool is_valid_id(string token) {
-	//we know the entire thing will not be digits, as is_integer is called prior
-	auto iter = token.begin();
-	if (is_digit(*iter)) return false;
-	for (; iter < token.end(); ++iter) {
-		if (!(is_digit(*iter) || is_letter(*iter) || *iter == '_')) return false;
-	}
-	return true;
-}
-
-// check if valid string constant
-bool is_valid_str(string token) {
-	//beginning and end must be " or '
-	if (token.size() < 2) return false;
-	if (token.front() != '\"' && token.front() != '\'') return false;
-	if (token.back() != '\"' && token.back() != '\'') return false;
-	return true;
-}
-
-// check if valid integer constant
-bool is_valid_integer(string token) {
-	if (!is_integer(token)) return false;
-	int tmp = stoi(token);
-	return (0 <= tmp && tmp <= 32767);
-}
-
-// check if comment
-bool is_comment(string token) { return token == COM_SYM; }
-bool is_multicomment(string token) { return token == M_COM_SYM; }
-
-string string_val(string token) {
-    return token.substr(1, token.size() - 2);
-}
-
-// given a token, returns the token type
-string token_type(string token) {
-	if (token.size() == 0) return INVALID_TYPE;
-	if (is_keyword(token)) return TYPE_KW;
-	if (is_symbol(token)) return TYPE_SYM;
-	if (is_valid_integer(token)) return TYPE_IC;
-	if (is_valid_str(token)) return TYPE_SC;
-	if (is_valid_id(token)) return TYPE_ID;
-	return INVALID_TYPE;
-}
 
 struct Token {
     string token;
@@ -256,7 +185,8 @@ struct Tokenizer {
 
         //read until a valid token
         while (true) {
-			if(!fin->get(c)) return END_TOKEN_BUILD;
+			if(!fin->get(c)) 
+				return END_TOKEN_BUILD;
 
 			if (c == '\n' || c == ' ' || c == '\t') break;
 			if (c == '/') {
@@ -326,73 +256,146 @@ struct Tokenizer {
         }
     }
 
+	// check if letter
+	bool is_letter(char c) {
+		return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z'));
+	}
+
+	// check if digit
+	bool is_digit(char c) {
+		return ('0' <= c && c <= '9');
+	}
+
+	// given a token, returns whether or not the token is a keyword
+	bool is_keyword(string token) {
+		if (token == KW_CLASS) return true;
+		if (token == KW_CONSTRUCTOR) return true;
+		if (token == KW_FUNCTION) return true;
+		if (token == KW_METHOD) return true;
+		if (token == KW_FIELD) return true;
+		if (token == KW_STATIC) return true;
+		if (token == KW_VAR) return true;
+		if (token == KW_INT) return true;
+		if (token == KW_CHAR) return true;
+		if (token == KW_BOOL) return true;
+		if (token == KW_VOID) return true;
+		if (token == KW_TRUE) return true;
+		if (token == KW_FALSE) return true;
+		if (token == KW_NULL) return true;
+		if (token == KW_THIS) return true;
+		if (token == KW_LET) return true;
+		if (token == KW_DO) return true;
+		if (token == KW_IF) return true;
+		if (token == KW_ELSE) return true;
+		if (token == KW_WHILE) return true;
+		if (token == KW_RETURN) return true;
+		return false;
+	}
+
+	// given a token, returns whether or not the token is a symbol
+	bool is_symbol(string token) {
+		if (token.size() != 1) return false;
+		if (token == SYM_OR) return true;
+		if (token == SYM_AND) return true;
+		if (token == SYM_EQ) return true;
+		if (token == SYM_TIL) return true;
+		if (token == SYM_GT) return true;
+		if (token == SYM_LT) return true;
+		if (token == SYM_CBB) return true;
+		if (token == SYM_CBF) return true;
+		if (token == SYM_PAB) return true;
+		if (token == SYM_PAF) return true;
+		if (token == SYM_SBB) return true;
+		if (token == SYM_DIV) return true;
+		if (token == SYM_SBF) return true;
+		if (token == SYM_MUL) return true;
+		if (token == SYM_MIN) return true;
+		if (token == SYM_ADD) return true;
+		if (token == SYM_PER) return true;
+		if (token == SYM_COM) return true;
+		if (token == SYM_SMC) return true;
+		return false;
+	}
+
+	bool is_symbol(char token) {
+		if (token == SYM_OR[0]) return true;
+		if (token == SYM_AND[0]) return true;
+		if (token == SYM_EQ[0]) return true;
+		if (token == SYM_TIL[0]) return true;
+		if (token == SYM_GT[0]) return true;
+		if (token == SYM_LT[0]) return true;
+		if (token == SYM_CBB[0]) return true;
+		if (token == SYM_CBF[0]) return true;
+		if (token == SYM_PAB[0]) return true;
+		if (token == SYM_DIV[0]) return true;
+		if (token == SYM_PAF[0]) return true;
+		if (token == SYM_SBB[0]) return true;
+		if (token == SYM_SBF[0]) return true;
+		if (token == SYM_MUL[0]) return true;
+		if (token == SYM_MIN[0]) return true;
+		if (token == SYM_ADD[0]) return true;
+		if (token == SYM_PER[0]) return true;
+		if (token == SYM_COM[0]) return true;
+		if (token == SYM_SMC[0]) return true;
+		return false;
+	}
+
+	// check if integral
+	bool is_integer(string token) {
+		//minus sign is considered symbol
+		for (auto iter = token.begin(); iter < token.end(); ++iter) {
+			if (!is_digit(*iter)) return false;
+		}
+		return true;
+	}
+
+	// check if valid identifier
+	bool is_valid_id(string token) {
+		//we know the entire thing will not be digits, as is_integer is called prior
+		auto iter = token.begin();
+		if (is_digit(*iter)) return false;
+		for (; iter < token.end(); ++iter) {
+			if (!(is_digit(*iter) || is_letter(*iter) || *iter == '_')) return false;
+		}
+		return true;
+	}
+
+	// check if valid string constant
+	bool is_valid_str(string token) {
+		//beginning and end must be " or '
+		if (token.size() < 2) return false;
+		if (token.front() != '\"' && token.front() != '\'') return false;
+		if (token.back() != '\"' && token.back() != '\'') return false;
+		return true;
+	}
+
+	// check if valid integer constant
+	bool is_valid_integer(string token) {
+		if (!is_integer(token)) return false;
+		int tmp = stoi(token);
+		return (0 <= tmp && tmp <= 32767);
+	}
+
+	// check if comment
+	bool is_comment(string token) { return token == COM_SYM; }
+	bool is_multicomment(string token) { return token == M_COM_SYM; }
+
+	string string_val(string token) {
+		return token.substr(1, token.size() - 2);
+	}
+
+	// given a token, returns the token type
+	string token_type(string token) {
+		if (token.size() == 0) return INVALID_TYPE;
+		if (is_keyword(token)) return TYPE_KW;
+		if (is_symbol(token)) return TYPE_SYM;
+		if (is_valid_integer(token)) return TYPE_IC;
+		if (is_valid_str(token)) return TYPE_SC;
+		if (is_valid_id(token)) return TYPE_ID;
+		return INVALID_TYPE;
+	}
+
 };
-
-#define O1			"<"
-#define O2			"</"
-#define C0			">"
-#define CLASS		"class"
-
-#define SUBR_DEC	"subroutineDec"
-#define SUBR_BODY	"subroutineBody"
-
-#define PAR_LIST	"parameterList"
-#define STATEMENTS	"statements"
-
-#define WHILE_STAT	"whileStatement"
-#define IF_STAT		"ifStatement"
-
-#define LET_STAT	"letStatement"
-#define DO_STAT		"doStatement"
-#define RET_STAT	"returnStatement"
-#define VAR_DEC		"varDec"
-#define C_VAR_DEC	"classVarDec"
-
-#define EXPRESSION	"expression"
-#define EXP_LIST	"expressionList"
-#define TERM		"term"
-
-#define SEG_ARG		"argument"
-#define SEG_LOC		"local"
-#define SEG_STAT	"static"
-#define SEG_THIS	"this"	
-#define SEG_THAT	"that"
-#define SEG_POINT	"pointer"
-#define SEG_TEMP	"temp"
-#define SPACE		" "
-
-#define PUSH_CONST	"push constant "
-
-#define PUSH		"push "
-#define POP			"pop "
-
-#define MATH_ADD	"add"
-#define MATH_SUB	"sub"
-#define MATH_NEG	"neg"
-#define MATH_EQ 	"eq"
-#define MATH_GT 	"gt"
-#define MATH_LT 	"lt"
-#define MATH_AND	"and"
-#define MATH_OR 	"or"
-#define MATH_NOT	"not"
-
-#define LABEL		"label "
-#define GOTO		"goto "
-#define IFGOTO		"if-goto "
-#define FUNC		"function "
-#define CALL		"call "
-#define RETURN		"return"
-#define KIND_STATIC	"KSTATIC"
-#define KIND_FIELD	"KFIELD"
-#define KIND_ARG	"KARG"
-#define KIND_VAR	"KVAR"
-#define NO_KIND		"KNONE"
-
-#define IN_STATIC	0
-#define IN_FIELD	1
-#define IN_ARG		2
-#define IN_VAR		3
-#define R_INS_SZ	4
 
 struct AnalyzerEngine {
 
@@ -400,6 +403,8 @@ struct AnalyzerEngine {
 	Tokenizer tokenizer;
 	string prepend;
 	Token token;
+
+	AnalyzerEngine() {}
 	
 	AnalyzerEngine(ofstream &fout, ifstream &fin) {
 		this->fout = &fout;
@@ -419,7 +424,10 @@ struct AnalyzerEngine {
 	void set_ifile(ofstream &fout) { this->fout = &fout; }
 	void set_ofile(ifstream &fin) { tokenizer = Tokenizer(fin); }
 
-	void to(string tag) { (*fout) << (prepend + O1 + tag + C0) << endl; indent(); }
+	void to(string tag) { 
+		(*fout) << (prepend + O1 + tag + C0) << endl; 
+		indent(); 
+	}
 	void tc(string tag) { undent(); (*fout) << (prepend + O2 + tag + C0) << endl; }
 	void t(string tag, string contents) { (*fout) << (prepend + O1 + tag + C0 + contents + O2 + tag + C0) << endl; }
 	void t() { t(token.type, token.token); }
@@ -925,6 +933,8 @@ struct CompilationEngine {
 	Token token;
 	int num_labels;
 
+	CompilationEngine() {}
+
 	CompilationEngine(ofstream &fout, ifstream &fin) {
 		tokenizer = Tokenizer(fin);
 		writer = VMWriter(fout);
@@ -942,6 +952,8 @@ struct CompilationEngine {
 	}
 
 	void advance() { token = tokenizer.tokenize(); }
+
+	void compile() { compile_class(); }
 
 	void compile_class() {
 		advance(); 
@@ -1322,27 +1334,36 @@ struct CompilationEngine {
 };
 
 struct Compiler {
+	CompilationEngine *engine_c;
+	AnalyzerEngine *engine_a;
 
+	Compiler() {}
+
+	Compiler(string inputFileName) {
+		string fn = inputFileName.substr(0, inputFileName.find_last_of("."));
+		ifstream *fin = new ifstream(inputFileName);
+		ofstream *xmlFout = new ofstream(fn + ".xml");
+		ofstream *vmFout = new ofstream(fn + ".vm");
+
+		cout << inputFileName << " : \t" << fin->is_open() << endl;
+		cout << fn << ".xml : \t" << xmlFout->is_open() << endl;
+		cout << fn << ".vm : \t" << vmFout->is_open() << endl;
+
+		engine_c = new CompilationEngine(*vmFout, *fin);
+		engine_a = new AnalyzerEngine(*xmlFout, *fin);
+	}
+
+	void compile() { engine_c->compile(); }
+
+	void analyze() { engine_a->compile(); }
 };
 
 int main(int argc, char* argv[]) {
-	ifstream fin("test.jack");
-	ofstream fout("test.xml");
-	/*if (argc < 2) return -1;
-	if (argc < 3) {
-		string arg(argv[1]);
-		cout << arg << endl;
-		cout << (arg.substr(0, arg.find_last_of('.')) + "Output.xml") << endl;
-		fin = ifstream(arg);
-		fout = ofstream(arg.substr(0, arg.find_last_of('.')) + "Output.xml");
-	} else {
-		cout << argv[2] << endl << argv[1] << endl;
-		fin = ifstream(argv[2]);
-		fout = ofstream(argv[1]);
-	}*/
+	string testFileName = "test.jack";
 
-	AnalyzerEngine engine(fout, fin);
+	Compiler compiler(testFileName);
 
-	engine.compile();
+	compiler.analyze();
 
+	compiler.compile();
 }
