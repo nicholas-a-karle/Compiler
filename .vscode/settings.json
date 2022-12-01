@@ -44,6 +44,7 @@
         "xlocale": "cpp",
         "xlocinfo": "cpp",
         "xlocnum": "cpp",
-        "xstddef": "cpp"
+        "xstddef": "cpp",
+        "map": "cpp"
     }
 }

@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <map>
 using namespace std;
 
 #define TYPE_KW			"keyword"
@@ -224,6 +225,7 @@ struct Token {
 struct Tokenizer {
 
     ifstream *fin;
+	streampos spot;
 
 	//constructor
     Tokenizer() {
@@ -233,9 +235,19 @@ struct Tokenizer {
     //constructor
     Tokenizer(ifstream &fin) {
         this->fin = &fin;
+		save_spot();
     }
 
     void setFile(ifstream &fin) { this->fin = &fin; }
+
+	void reset() { fin->seekg(ios::beg); }
+
+	void save_spot() {
+		spot = fin->tellg();
+	}
+	void load_spot() {
+		fin->seekg(spot);
+	}
     
     Token tokenize() {
         string token = "";
@@ -340,7 +352,47 @@ struct Tokenizer {
 #define EXP_LIST	"expressionList"
 #define TERM		"term"
 
+#define SEG_ARG		"argument"
+#define SEG_LOC		"local"
+#define SEG_STAT	"static"
+#define SEG_THIS	"this"	
+#define SEG_THAT	"that"
+#define SEG_POINT	"pointer"
+#define SEG_TEMP	"temp"
+#define SPACE		" "
 
+#define PUSH_CONST	"push constant "
+
+#define PUSH		"push "
+#define POP			"pop "
+
+#define MATH_ADD	"add"
+#define MATH_SUB	"sub"
+#define MATH_NEG	"neg"
+#define MATH_EQ 	"eq"
+#define MATH_GT 	"gt"
+#define MATH_LT 	"lt"
+#define MATH_AND	"and"
+#define MATH_OR 	"or"
+#define MATH_NOT	"not"
+
+#define LABEL		"label "
+#define GOTO		"goto "
+#define IFGOTO		"if-goto "
+#define FUNC		"function "
+#define CALL		"call "
+#define RETURN		"return"
+#define KIND_STATIC	"KSTATIC"
+#define KIND_FIELD	"KFIELD"
+#define KIND_ARG	"KARG"
+#define KIND_VAR	"KVAR"
+#define NO_KIND		"KNONE"
+
+#define IN_STATIC	0
+#define IN_FIELD	1
+#define IN_ARG		2
+#define IN_VAR		3
+#define R_INS_SZ	4
 
 struct AnalyzerEngine {
 
@@ -704,86 +756,574 @@ struct AnalyzerEngine {
 	}
 };
 
-#define SEG_ARG		"argument"
-#define SEG_LOC		"local"
-#define SEG_STAT	"static"
-#define SEG_THIS	"this"	
-#define SEG_THAT	"that"
-#define SEG_POINT	"pointer"
-#define SEG_TEMP	"temp"
-#define SPACE		" "
+//name: type, kind, offset
+struct SymbolTable {
 
-#define PUSH		"push "
-#define POP			"pop "
+	string table_name;
+	map<string, tuple<string, string, int>> table;
+	vector<int> rins;
 
-#define MATH_ADD	"add"
-#define MATH_SUB	"sub"
-#define MATH_NEG	"neg"
-#define MATH_EQ 	"eq"
-#define MATH_GT 	"gt"
-#define MATH_LT 	"lt"
-#define MATH_AND	"and"
-#define MATH_OR 	"or"
-#define MATH_NOT	"not"
+	SymbolTable() {
+		table_name = "";
+		rins = vector<int>(R_INS_SZ, 0);
+		table = map<string, tuple<string, string, int>>();
+	}
 
-#define LABEL		"label "
-#define GOTO		"goto "
-#define IFGOTO		"if-goto "
-#define FUNC		"function "
-#define CALL		"call "
-#define RETURN		"return"
+	SymbolTable(string name) {
+		table_name = name;
+		rins = vector<int>(R_INS_SZ, 0);
+		table = map<string, tuple<string, string, int>>();
+	}
+
+	void reset() {
+		rins = vector<int>(R_INS_SZ, 0);
+		table = map<string, tuple<string, string, int>>();
+	}
+
+	bool define(string name, string type, string kind) {
+		if (table.find(name) == table.end()) {
+			table[name] = {type, kind, var_count(kind)};
+			if (kind == KIND_STATIC) {
+				++rins[IN_STATIC];
+			} else if (kind == KIND_FIELD) {
+				++rins[IN_FIELD];
+			} else if (kind == KIND_ARG) {
+				++rins[IN_ARG];
+			} else if (kind == KIND_VAR) {
+				++rins[IN_VAR];
+			} else {
+				return false;
+			}
+			return true;
+		} //if symbol exists, ignore, need not edit
+		return false;
+	}
+
+	int var_count(string kind) {
+		if (kind == KIND_STATIC) {
+			return rins[IN_STATIC];
+		} else if (kind == KIND_FIELD) {
+			return rins[IN_FIELD];
+		} else if (kind == KIND_ARG) {
+			return rins[IN_ARG];
+		} else if (kind == KIND_VAR) {
+			return rins[IN_VAR];
+		} else {
+			return -1;
+		}
+	}
+
+	string kind(string name) {
+		if (get<1>(table[name]) != KIND_STATIC && get<1>(table[name]) != KIND_FIELD 
+		&& get<1>(table[name]) != KIND_ARG && get<1>(table[name]) != KIND_VAR) {
+			return get<1>(table[name]);
+		} else {
+			return NO_KIND;
+		}
+	}
+
+	string type(string name) {
+		return get<0>(table[name]);
+	}
+
+	int index(string name) {
+		return get<2>(table[name]);
+	}
+
+	bool declared(string name) {
+		return table.find(name) != table.end();
+	}
+
+};
 
 struct VMWriter{
 
 	ofstream* fout;
 
+	VMWriter() {}
+
 	VMWriter(ofstream &fout) {
 		this->fout = &fout;
 	}
 
-	void set_file(ofstream &fout) { this->fout = &fout; }
+	void _set_file(ofstream &fout) { this->fout = &fout; }
 
 	void out(string str) { (*fout) << str << endl; }
 
-	void push(string segment, int index) {
+	void _push(string segment, int index) {
 		out(PUSH + segment + SPACE + to_string(index));
 	}
 
-	void pop(string segment, int index) {
+	void _pop(string segment, int index) {
 		out(POP + segment + SPACE + to_string(index));
 	}
 
-	void add() {out(MATH_ADD); }
-	void sub() {out(MATH_SUB); }
-	void neg() {out(MATH_NEG); }
-	void eq()  {out(MATH_EQ); }
-	void gt()  {out(MATH_GT); }
-	void lt()  {out(MATH_LT); }
-	void and() {out(MATH_AND); }
-	void or()  {out(MATH_OR); }
-	void not() {out(MATH_NOT); }
+	void _push(tuple<string, string, int> variable) {
+		_push(ktos(get<1>(variable)), get<2>(variable));
+	}
 
-	void label(string label) { out(LABEL + label); }
+	void _pop(tuple<string, string, int> variable) {
+		_pop(ktos(get<1>(variable)), get<2>(variable));
+	}
 
-	void _goto(string label) { out(GOTO + label); }
+	void _push_constant(int constant) {
+		out(PUSH_CONST + to_string(constant));
+	}
 
-	void _ifgoto(string label) { out(IFGOTO + label); }
+	void _push_int(string integer) {
+		out(PUSH_CONST + integer);
+	}
 
-	void call(string label, int nArgs) {
+	void _push_string(string str) {
+		_push_constant(str.length());
+		_call("String.new", 1);
+		for (int i = 0; i < str.length(); ++i) {
+			_push_constant(str[i]);
+			_call("String.appendChar", 2);
+		}
+	}
+
+	void _add() {out(MATH_ADD); }
+	void _sub() {out(MATH_SUB); }
+	void _neg() {out(MATH_NEG); }
+	void _eq()  {out(MATH_EQ); }
+	void _gt()  {out(MATH_GT); }
+	void _lt()  {out(MATH_LT); }
+	void _and() {out(MATH_AND); }
+	void _or()  {out(MATH_OR); }
+	void _not() {out(MATH_NOT); }
+
+	void _label(string label) { out(LABEL + label); }
+
+	void __goto(string label) { out(GOTO + label); }
+
+	void __ifgoto(string label) { out(IFGOTO + label); }
+
+	void _call(string label, int nArgs) {
 		out(CALL + label + SPACE + to_string(nArgs));
 	}
 
-	void func(string label, int nVars) {
+	void _func(string label, int nVars) {
 		out(FUNC + label + SPACE + to_string(nVars));
 	}
 
-	void ret() { out(RETURN); }
+	void _ret() { out(RETURN); }
+
+	string ktos(string kind) {
+		if (kind == KIND_STATIC) return SEG_STAT;
+		if (kind == KIND_FIELD) return SEG_THIS;
+		if (kind == KIND_ARG) return SEG_ARG;
+		if (kind == KIND_VAR) return SEG_LOC;
+		return "";
+	}
 
 };
 
-struct CompilationEngine{};
+struct CompilationEngine {
+	Tokenizer tokenizer;
+	VMWriter writer;
+	Token token;
+	int num_labels;
 
-struct Compiler {};
+	CompilationEngine(ofstream &fout, ifstream &fin) {
+		tokenizer = Tokenizer(fin);
+		writer = VMWriter(fout);
+		token = Token("", "");
+	}
+
+	string label() {
+		++num_labels;
+		return "ARBITRARY_LABEL_" + to_string(num_labels);
+	}
+
+	string label(string pre) {
+		++num_labels;
+		return pre + "_LABEL_" + to_string(num_labels);
+	}
+
+	void advance() { token = tokenizer.tokenize(); }
+
+	void compile_class() {
+		advance(); 
+		advance();
+
+		SymbolTable class_vars(token.token);
+
+		advance();
+
+		compile_cvars(class_vars);
+		compile_subrs(class_vars);
+
+
+	}
+	void compile_cvars(SymbolTable &class_vars) {
+		//compiles all class vars
+		string kind, type;
+		tokenizer.reset();
+
+		while (token.token != END) {
+			if (token.token == KW_FIELD || token.token == KW_STATIC) {
+				//varType dataType varName ... , varName, varName ... ;
+				kind = token.token;
+				advance();
+				type = token.token;
+				advance();
+				while (token.token != SYM_SMC) {
+					class_vars.define(token.token, type, kind);
+					advance();
+					if (token.token == SYM_SMC) break;
+					advance();
+				}
+			}
+			advance();
+		}
+
+		tokenizer.reset();
+	}
+	void compile_subrs(SymbolTable &class_vars) {
+		string subr_type, ret_type, subr_name;
+		tokenizer.reset();
+
+		while (token.token != END) {
+			if (token.token == KW_CONSTRUCTOR || token.token == KW_FUNCTION || token.token == KW_METHOD) {
+				SymbolTable local_vars;
+				subr_type = token.token;
+				advance();
+				ret_type = token.token;
+				advance();
+				subr_name = token.token;
+				local_vars.table_name = subr_type + "_" + ret_type + "_" + subr_name;
+				advance(); //pass (
+				advance();
+				compile_param_list(class_vars, local_vars);
+				advance(); //pass )
+				advance(); //pass {
+				compile_subr_body(class_vars, local_vars, subr_type);
+				advance(); //pass }
+			}
+			advance();
+		}
+
+		tokenizer.reset();
+	}
+	void compile_param_list(SymbolTable &class_vars, SymbolTable &local_vars) {
+		//pattern: (type name, type name, ...)
+		//should start at first type
+
+		while (token.token != SYM_PAB) {
+			string param_type, param_name;
+			
+			param_type = token.token;
+			advance();
+			param_name = token.token;
+
+			local_vars.define(param_name, param_type, KIND_ARG);
+
+			advance(); //pass by comma
+			advance();
+		}
+
+	}
+	void compile_subr_body(SymbolTable &class_vars, SymbolTable &local_vars, string subr_type) {
+		//already at first token, { advanced past
+		compile_subr_vars(class_vars, local_vars);
+
+		//
+		// WRITE FUNCTION
+		//
+
+		if (subr_type == KW_CONSTRUCTOR) {
+			int field_count = class_vars.var_count(KIND_FIELD);
+			//push constant field_count
+			//call "Memory" "alloc" 1
+		} else if (subr_type == KW_METHOD) {
+			//push argument 0
+			writer._push(SEG_ARG, 0);
+			//pop point 0
+			writer._pop(SEG_POINT, 0);
+		}
+
+		compile_statements(class_vars, local_vars);
+		advance();
+	}
+	void compile_subr_vars(SymbolTable &class_vars, SymbolTable &local_vars) {
+		tokenizer.save_spot();
+		int cbi = 1;
+		while (cbi > 0) {
+			if (token.token == KW_VAR) {
+				//should be: var data_type name;  or var data_type name, name
+				string type, name;
+				advance(); //pass var
+				type = token.token;
+				advance();
+				name = token.token;
+				local_vars.define(name, type, KIND_VAR);
+				advance(); //check if ,
+				while (token.token == SYM_COM) {
+					advance();
+					name = token.token;
+					local_vars.define(name, type, KIND_VAR);
+					advance();
+				}
+				advance(); //pass ;
+			} else if (token.token == SYM_CBB) --cbi;
+			else if (token.token == SYM_CBF) ++cbi;
+		}
+
+		tokenizer.load_spot();
+	}
+	void compile_statements(SymbolTable &class_vars, SymbolTable local_vars) {
+		bool check_statements = true;
+		while (check_statements) {
+			if (token.token == KW_IF) {
+				compile_if(class_vars, local_vars);
+			} else if (token.token == KW_WHILE) {
+				compile_while(class_vars, local_vars);
+			} else if (token.token == KW_LET) {
+				compile_let(class_vars, local_vars);
+			} else if (token.token == KW_DO) {
+				compile_do(class_vars, local_vars);
+			} else if (token.token == KW_RETURN) {
+				compile_return(class_vars, local_vars);
+			} else {
+				check_statements = false;
+			}
+		}
+	}
+	void compile_let(SymbolTable &class_vars, SymbolTable local_vars) {
+
+		advance(); //pass let keyword
+		string identifier = token.token;
+		advance(); //pass var name
+
+		if (token.token == SYM_SBF) {
+			//array
+			advance(); //pass [
+			compile_expression(class_vars, local_vars);
+			advance(); //pass ]
+			advance(); //pass =
+			//push symbol identifier
+			if (local_vars.declared(identifier)) writer._push(local_vars.table[identifier]);
+			if (class_vars.declared(identifier)) writer._push(class_vars.table[identifier]);
+			//write add
+			compile_expression(class_vars, local_vars);
+			//pop temp 0
+			writer._pop(SEG_TEMP, 0);
+			//pop point 1
+			writer._pop(SEG_POINT, 1);
+			//push temp 0
+			writer._push(SEG_TEMP, 0);
+			//pop that 0
+			writer._pop(SEG_THAT, 0);
+
+		} else {
+			//not array
+			advance(); //pass =
+			compile_expression(class_vars, local_vars);
+			//pop symbol identifier
+			if (local_vars.declared(identifier)) writer._pop(local_vars.table[identifier]);
+			if (class_vars.declared(identifier)) writer._pop(class_vars.table[identifier]);
+		}
+		advance(); //pass ;
+	}
+	void compile_if(SymbolTable &class_vars, SymbolTable local_vars) {
+		advance(); advance(); // pass if and (
+
+		compile_expression(class_vars, local_vars);
+
+		advance(); advance(); // pass ) and {
+
+		string label_false = label("IF_CASE_FALSE");
+		string label_end_if = label("IF_END");
+
+		//write if label_false
+		writer.__ifgoto(label_false);
+
+		compile_statements(class_vars, local_vars);
+
+		//in case of else
+		if (token.token == KW_ELSE) {
+			advance(); advance(); //pass else and {
+			compile_statements(class_vars, local_vars);
+			advance(); //pass }
+		}
+		
+		//write label label_end_if
+		writer._label(label_end_if);
+		
+	}
+	void compile_while(SymbolTable &class_vars, SymbolTable local_vars) {
+
+		advance(); advance(); //pass while and {
+		
+		string label_begin = label("WHILE_BEGIN");
+		string label_false = label("WHILE_CASE_FALSE");
+
+		// write label label_begin
+		writer._label(label_begin);
+		compile_expression(class_vars, local_vars);
+
+		advance(); advance(); //pass ) and {
+		
+		//write if label_false
+		writer.__ifgoto(label_false);
+
+		compile_statements(class_vars, local_vars);
+
+		//write goto label_begin
+		writer.__goto(label_begin);
+		//write label label_false
+		writer._label(label_false);
+	}
+	void compile_do(SymbolTable &class_vars, SymbolTable local_vars) {
+		advance(); //pass keyword do
+		compile_term(class_vars, local_vars);
+		//pop temp 0
+		writer._pop(SEG_TEMP, 0);
+		advance(); //pass ;
+	}
+	void compile_return(SymbolTable &class_vars, SymbolTable local_vars) {
+		advance(); //pass keyword return
+		if (token.token != SYM_SMC) {
+			compile_expression(class_vars, local_vars);
+		} else {
+			//write int 0
+			writer._push_constant(0);
+		}
+		//write return
+		writer._ret();
+		advance(); //pass ;
+	}
+	void compile_expression(SymbolTable &class_vars, SymbolTable local_vars) {
+
+		while (true) {
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
+			compile_term(class_vars, local_vars);
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
+			
+			if (token.token == SYM_PAF) {
+				advance();
+				compile_expression(class_vars, local_vars);
+			}
+			advance();
+			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
+		}
+
+	}
+	void compile_term(SymbolTable &class_vars, SymbolTable local_vars) {
+		bool not_var = true;
+		if (token.token == SYM_MIN) {
+			//write neg
+			writer._neg();
+		} else if (token.token == SYM_TIL) {
+			//wrtie not
+			writer._not();
+		} else if (token.token == SYM_PAF) {
+			compile_expression(class_vars, local_vars);
+			advance();
+		} else if (token.type == TYPE_IC) {
+			//write int (token.token)
+			writer._push_int(token.token);
+		} else if (token.type == TYPE_SC) {
+			//write string (token.token)
+			writer._push_string(token.token);
+		} else if (token.token == KW_THIS) {
+			//push pointer 0
+			writer._push(SEG_POINT, 0);
+		} else if (token.token == KW_FALSE || token.token == KW_NULL) {
+			//push constant 0
+			writer._push_constant(0);
+		} else if (token.token == KW_TRUE) {
+			//push constant 0, not
+			writer._push_constant(0);
+			writer._not();
+		} else if (token.type == TYPE_ID) {
+			//variable, array, and call handling
+			
+			//save identifier
+			string identifier = token.token;
+			advance(); //next token after identifier
+
+			if (token.token == SYM_SBF) {
+
+				advance(); //pass [
+				compile_expression(class_vars, local_vars);
+				//push symbol identifier
+				if (local_vars.declared(identifier)) writer._push(local_vars.table[identifier]);
+				if (class_vars.declared(identifier)) writer._push(class_vars.table[identifier]);
+				//write add
+				writer._add();
+				//pop pointer 1
+				writer._pop(SEG_POINT, 1);
+				//push that 0
+				writer._push(SEG_THAT, 0);
+				advance(); //pass ]
+
+			} else {
+				//token_value = token_var = identifier
+				//names of function and function's class
+				string func_name = identifier;
+				string func_class = class_vars.table_name;
+				//whether or not this is a method call
+				bool method_call = true;
+				//number of arguments in paremeters
+				int num_args = 0;
+
+				if (token.token == SYM_PER) {
+					method_call = false;
+					advance(); //pass .
+					//func_obj = identifier;
+					func_name = token.token;
+					advance();
+					if (class_vars.declared(identifier)) {
+						func_class = class_vars.type(identifier);
+						goto class_func_setup;
+					} else if (local_vars.declared(identifier)) {
+						func_class = local_vars.type(identifier);
+						class_func_setup:
+						num_args = 1;
+						//push symbol identifier
+						if (local_vars.declared(identifier)) writer._push(local_vars.table[identifier]);
+						if (class_vars.declared(identifier)) writer._push(class_vars.table[identifier]);
+					} else {
+						//function call from class
+						func_class = identifier;
+					}
+				}
+
+				if (token.token == SYM_PAF) {
+					if (method_call) {
+						num_args = 1;
+						//push pointer 0
+						writer._push(SEG_POINT, 0);
+					}
+					advance(); //pass (
+					num_args += compile_exp_list(class_vars, local_vars);
+					//write call func_class.func_name, num_args
+					writer._call(func_class + "." + func_name, num_args);
+					advance(); //pass )
+				} else {
+					//push symbol identifier
+					if (local_vars.declared(identifier)) writer._push(local_vars.table[identifier]);
+					if (class_vars.declared(identifier)) writer._push(class_vars.table[identifier]);
+				}
+			}
+		}
+	}
+	int compile_exp_list(SymbolTable &class_vars, SymbolTable local_vars) {
+		int i = 0;
+		while (token.token != SYM_PAB) {
+			if (token.token == SYM_SMC) advance(); //pass ,
+			++i;
+			compile_expression(class_vars, local_vars);
+		}
+		return i;
+	}
+};
+
+struct Compiler {
+
+};
 
 int main(int argc, char* argv[]) {
 	ifstream fin("test.jack");
