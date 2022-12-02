@@ -1,0 +1,58 @@
+function test.new 0
+push constant 0
+call Memory.alloc 1
+push constant 0
+push constant 0
+push constant 30
+push constant 0
+push pointer 0
+push pointer 0
+call test.dispose 1
+push  -1
+call Square.dispose 1
+push pointer 0
+push pointer 0
+call test.moveSquare 1
+push constant 1
+push  -1
+call Square.moveUp 1
+push constant 2
+push  -1
+call Square.moveDown 1
+push constant 3
+push  -1
+call Square.moveLeft 1
+push constant 4
+push  -1
+call Square.moveRight 1
+push constant 5
+push pointer 0
+call test.run 1
+push constant 0
+not
+push constant 0
+call Keyboard.keyPressed 0
+push pointer 0
+call test.moveSquare 1
+push constant 81
+push constant 0
+not
+push constant 90
+push  -1
+call Square.decSize 1
+push constant 88
+push  -1
+call Square.incSize 1
+push constant 131
+push constant 1
+push constant 133
+push constant 2
+push constant 130
+push constant 3
+push constant 132
+push constant 4
+not
+push constant 0
+call Keyboard.keyPressed 0
+push pointer 0
+call test.moveSquare 1

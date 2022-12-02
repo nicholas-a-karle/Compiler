@@ -135,8 +135,6 @@ using namespace std;
 #define END_TOKEN_BUILD	Token("END", "END")
 #define END				"END"
 
-
-
 struct Token {
     string token;
     string type;
@@ -154,7 +152,6 @@ struct Token {
 struct Tokenizer {
 
     ifstream *fin;
-	streampos spot;
 
 	//constructor
     Tokenizer() {
@@ -164,19 +161,9 @@ struct Tokenizer {
     //constructor
     Tokenizer(ifstream &fin) {
         this->fin = &fin;
-		save_spot();
     }
 
     void setFile(ifstream &fin) { this->fin = &fin; }
-
-	void reset() { fin->seekg(ios::beg); }
-
-	void save_spot() {
-		spot = fin->tellg();
-	}
-	void load_spot() {
-		fin->seekg(spot);
-	}
     
     Token tokenize() {
         string token = "";
@@ -951,10 +938,9 @@ struct CompilationEngine {
 		return pre + "_LABEL_" + to_string(num_labels);
 	}
 
-	void advance() { token = tokenizer.tokenize(); }
+	void advance() { token = tokenizer.tokenize(); cout << token.token << endl; }
 
 	void compile() { compile_class(); }
-
 	void compile_class() {
 		advance(); 
 		advance();
@@ -962,61 +948,51 @@ struct CompilationEngine {
 		SymbolTable class_vars(token.token);
 
 		advance();
-
-		compile_cvars(class_vars);
-		compile_subrs(class_vars);
-
-
+		while (token.token != END) {
+			if (token.token == KW_FIELD || token.token == KW_STATIC) compile_cvar(class_vars);
+			if (token.token == KW_CONSTRUCTOR || token.token == KW_FUNCTION || token.token == KW_METHOD) compile_subr(class_vars);
+			advance();
+		}
 	}
-	void compile_cvars(SymbolTable &class_vars) {
+	void compile_cvar(SymbolTable &class_vars) {
 		//compiles all class vars
 		string kind, type;
-		tokenizer.reset();
-
-		while (token.token != END) {
-			if (token.token == KW_FIELD || token.token == KW_STATIC) {
-				//varType dataType varName ... , varName, varName ... ;
-				kind = token.token;
-				advance();
-				type = token.token;
-				advance();
-				while (token.token != SYM_SMC) {
-					class_vars.define(token.token, type, kind);
-					advance();
-					if (token.token == SYM_SMC) break;
-					advance();
-				}
-			}
+		
+		if (token.token == KW_FIELD || token.token == KW_STATIC) {
+			//varType dataType varName ... , varName, varName ... ;
+			kind = token.token;
 			advance();
+			type = token.token;
+			advance();
+			while (token.token != SYM_SMC) {
+				class_vars.define(token.token, type, kind);
+				advance();
+				if (token.token == SYM_SMC) break;
+				advance();
+			}
 		}
-
-		tokenizer.reset();
+		advance();
 	}
-	void compile_subrs(SymbolTable &class_vars) {
+	void compile_subr(SymbolTable &class_vars) {
 		string subr_type, ret_type, subr_name;
-		tokenizer.reset();
 
-		while (token.token != END) {
-			if (token.token == KW_CONSTRUCTOR || token.token == KW_FUNCTION || token.token == KW_METHOD) {
-				SymbolTable local_vars;
-				subr_type = token.token;
-				advance();
-				ret_type = token.token;
-				advance();
-				subr_name = token.token;
-				local_vars.table_name = subr_type + "_" + ret_type + "_" + subr_name;
-				advance(); //pass (
-				advance();
-				compile_param_list(class_vars, local_vars);
-				advance(); //pass )
-				advance(); //pass {
-				compile_subr_body(class_vars, local_vars, subr_type);
-				advance(); //pass }
-			}
+		if (token.token == KW_CONSTRUCTOR || token.token == KW_FUNCTION || token.token == KW_METHOD) {
+			SymbolTable local_vars;
+			subr_type = token.token;
 			advance();
+			ret_type = token.token;
+			advance();
+			subr_name = token.token;
+			local_vars.table_name = class_vars.table_name + "." + subr_name;
+			advance(); //pass (
+			advance();
+			compile_param_list(class_vars, local_vars);
+			advance(); //pass )
+			advance(); //pass {
+			compile_subr_body(class_vars, local_vars, subr_type);
+			advance(); //pass }
 		}
-
-		tokenizer.reset();
+		advance();
 	}
 	void compile_param_list(SymbolTable &class_vars, SymbolTable &local_vars) {
 		//pattern: (type name, type name, ...)
@@ -1040,14 +1016,14 @@ struct CompilationEngine {
 		//already at first token, { advanced past
 		compile_subr_vars(class_vars, local_vars);
 
-		//
-		// WRITE FUNCTION
-		//
+		writer._func(local_vars.table_name, local_vars.var_count(KIND_VAR));
 
 		if (subr_type == KW_CONSTRUCTOR) {
 			int field_count = class_vars.var_count(KIND_FIELD);
 			//push constant field_count
+			writer._push_constant(field_count);
 			//call "Memory" "alloc" 1
+			writer._call("Memory.alloc", 1);
 		} else if (subr_type == KW_METHOD) {
 			//push argument 0
 			writer._push(SEG_ARG, 0);
@@ -1059,32 +1035,25 @@ struct CompilationEngine {
 		advance();
 	}
 	void compile_subr_vars(SymbolTable &class_vars, SymbolTable &local_vars) {
-		tokenizer.save_spot();
-		int cbi = 1;
-		while (cbi > 0) {
-			if (token.token == KW_VAR) {
-				//should be: var data_type name;  or var data_type name, name
-				string type, name;
-				advance(); //pass var
-				type = token.token;
+		while (token.token == KW_VAR) {
+			//should be: var data_type name;  or var data_type name, name
+			string type, name;
+			advance(); //pass var
+			type = token.token;
+			advance();
+			name = token.token;
+			local_vars.define(name, type, KIND_VAR);
+			advance(); //check if ,
+			while (token.token == SYM_COM) {
 				advance();
 				name = token.token;
 				local_vars.define(name, type, KIND_VAR);
-				advance(); //check if ,
-				while (token.token == SYM_COM) {
-					advance();
-					name = token.token;
-					local_vars.define(name, type, KIND_VAR);
-					advance();
-				}
-				advance(); //pass ;
-			} else if (token.token == SYM_CBB) --cbi;
-			else if (token.token == SYM_CBF) ++cbi;
+				advance();
+			}
+			advance(); //pass ;
 		}
-
-		tokenizer.load_spot();
 	}
-	void compile_statements(SymbolTable &class_vars, SymbolTable local_vars) {
+	void compile_statements(SymbolTable &class_vars, SymbolTable &local_vars) {
 		bool check_statements = true;
 		while (check_statements) {
 			if (token.token == KW_IF) {
@@ -1102,7 +1071,7 @@ struct CompilationEngine {
 			}
 		}
 	}
-	void compile_let(SymbolTable &class_vars, SymbolTable local_vars) {
+	void compile_let(SymbolTable &class_vars, SymbolTable &local_vars) {
 
 		advance(); //pass let keyword
 		string identifier = token.token;
@@ -1138,7 +1107,7 @@ struct CompilationEngine {
 		}
 		advance(); //pass ;
 	}
-	void compile_if(SymbolTable &class_vars, SymbolTable local_vars) {
+	void compile_if(SymbolTable &class_vars, SymbolTable &local_vars) {
 		advance(); advance(); // pass if and (
 
 		compile_expression(class_vars, local_vars);
@@ -1164,7 +1133,7 @@ struct CompilationEngine {
 		writer._label(label_end_if);
 		
 	}
-	void compile_while(SymbolTable &class_vars, SymbolTable local_vars) {
+	void compile_while(SymbolTable &class_vars, SymbolTable &local_vars) {
 
 		advance(); advance(); //pass while and {
 		
@@ -1187,14 +1156,14 @@ struct CompilationEngine {
 		//write label label_false
 		writer._label(label_false);
 	}
-	void compile_do(SymbolTable &class_vars, SymbolTable local_vars) {
+	void compile_do(SymbolTable &class_vars, SymbolTable &local_vars) {
 		advance(); //pass keyword do
 		compile_term(class_vars, local_vars);
 		//pop temp 0
 		writer._pop(SEG_TEMP, 0);
 		advance(); //pass ;
 	}
-	void compile_return(SymbolTable &class_vars, SymbolTable local_vars) {
+	void compile_return(SymbolTable &class_vars, SymbolTable &local_vars) {
 		advance(); //pass keyword return
 		if (token.token != SYM_SMC) {
 			compile_expression(class_vars, local_vars);
@@ -1206,7 +1175,7 @@ struct CompilationEngine {
 		writer._ret();
 		advance(); //pass ;
 	}
-	void compile_expression(SymbolTable &class_vars, SymbolTable local_vars) {
+	void compile_expression(SymbolTable &class_vars, SymbolTable &local_vars) {
 
 		while (true) {
 			if (token.token == SYM_PAB || token.token == SYM_SMC || token.token == SYM_COM || token.token == SYM_SBB) break;
@@ -1222,8 +1191,7 @@ struct CompilationEngine {
 		}
 
 	}
-	void compile_term(SymbolTable &class_vars, SymbolTable local_vars) {
-		bool not_var = true;
+	void compile_term(SymbolTable &class_vars, SymbolTable &local_vars) {
 		if (token.token == SYM_MIN) {
 			//write neg
 			writer._neg();
@@ -1231,6 +1199,7 @@ struct CompilationEngine {
 			//wrtie not
 			writer._not();
 		} else if (token.token == SYM_PAF) {
+			advance();
 			compile_expression(class_vars, local_vars);
 			advance();
 		} else if (token.type == TYPE_IC) {
@@ -1322,48 +1291,26 @@ struct CompilationEngine {
 			}
 		}
 	}
-	int compile_exp_list(SymbolTable &class_vars, SymbolTable local_vars) {
+	int compile_exp_list(SymbolTable &class_vars, SymbolTable &local_vars) {
 		int i = 0;
 		while (token.token != SYM_PAB) {
 			if (token.token == SYM_SMC) advance(); //pass ,
 			++i;
 			compile_expression(class_vars, local_vars);
+			advance();
 		}
 		return i;
 	}
 };
 
-struct Compiler {
-	CompilationEngine *engine_c;
-	AnalyzerEngine *engine_a;
-
-	Compiler() {}
-
-	Compiler(string inputFileName) {
-		string fn = inputFileName.substr(0, inputFileName.find_last_of("."));
-		ifstream *fin = new ifstream(inputFileName);
-		ofstream *xmlFout = new ofstream(fn + ".xml");
-		ofstream *vmFout = new ofstream(fn + ".vm");
-
-		cout << inputFileName << " : \t" << fin->is_open() << endl;
-		cout << fn << ".xml : \t" << xmlFout->is_open() << endl;
-		cout << fn << ".vm : \t" << vmFout->is_open() << endl;
-
-		engine_c = new CompilationEngine(*vmFout, *fin);
-		engine_a = new AnalyzerEngine(*xmlFout, *fin);
-	}
-
-	void compile() { engine_c->compile(); }
-
-	void analyze() { engine_a->compile(); }
-};
-
 int main(int argc, char* argv[]) {
-	string testFileName = "test.jack";
+	string in = "test.jack";
+	string out = "test.vm";
 
-	Compiler compiler(testFileName);
+	ifstream fin(in);
+	ofstream fout(out);
 
-	compiler.analyze();
+	CompilationEngine engine(fout, fin);
 
-	compiler.compile();
+	engine.compile();
 }
